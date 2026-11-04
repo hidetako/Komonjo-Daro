@@ -9,7 +9,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import anthropic
+from dotenv import load_dotenv
 from PIL import Image, ImageOps
+
+# CLI から呼ばれたときも .env（プロジェクト直下）を読む
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 MODEL = os.environ.get("KOBUN_MODEL", "claude-opus-5-5")
 EFFORT = os.environ.get("KOBUN_EFFORT", "high")
@@ -127,7 +131,14 @@ def build_user_content(ocr_text: str, image_path: str | Path | None, context: st
 
 def annotate(ocr_text: str, image_path: str | Path | None = None, context: str = "", client=None) -> Annotation:
     """OCRテキストと画像を Claude に送り、構造化された校訂・現代語訳・注釈を返す。"""
-    client = client or anthropic.Anthropic()
+    if client is None:
+        if not os.environ.get("ANTHROPIC_API_KEY") and not os.environ.get("ANTHROPIC_AUTH_TOKEN"):
+            raise RuntimeError(
+                "ANTHROPIC_API_KEY が設定されていません。プロジェクト直下の .env に\n"
+                "  ANTHROPIC_API_KEY=sk-ant-...\n"
+                "を記入してください（.env.example をコピーして作成）。"
+            )
+        client = anthropic.Anthropic()
     with client.messages.stream(
         model=MODEL,
         max_tokens=32000,
