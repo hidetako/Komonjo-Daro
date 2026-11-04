@@ -3,31 +3,78 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% block title %}kobun-reader{% endblock %}</title>
+<title>{% block title %}Komonjo-Daro{% endblock %}</title>
 <style>
-  :root { --bg:#faf7f0; --ink:#222; --sub:#666; --line:#d8d2c4; --accent:#7a1f1f; }
-  body { margin:0; font-family: "Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif; background:var(--bg); color:var(--ink); }
-  header { padding:12px 20px; border-bottom:1px solid var(--line); display:flex; gap:16px; align-items:baseline; }
-  header a { color:var(--accent); text-decoration:none; font-weight:bold; }
-  main { max-width:1200px; margin:0 auto; padding:20px; }
-  .grid { display:grid; grid-template-columns: 1fr 1fr; gap:24px; }
-  @media (max-width:900px){ .grid{ grid-template-columns:1fr; } }
-  img.page { max-width:100%; border:1px solid var(--line); background:#fff; }
-  textarea { width:100%; min-height:360px; font-family:inherit; font-size:16px; line-height:1.9; padding:10px; border:1px solid var(--line); background:#fff; box-sizing:border-box; }
-  input[type=text] { width:100%; padding:8px; border:1px solid var(--line); box-sizing:border-box; font-family:inherit; }
-  button { background:var(--accent); color:#fff; border:0; padding:10px 18px; font-size:15px; cursor:pointer; border-radius:3px; }
-  button.secondary { background:#555; }
-  .card { background:#fff; border:1px solid var(--line); padding:16px 20px; margin-bottom:16px; }
+  :root { --bg:#f6f2e8; --panel:#fffdf8; --ink:#222; --sub:#6b6560; --line:#d9d2c2; --accent:#7a1f1f; --accent-soft:#f3e4e4; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; }
+  body { font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif; background:var(--bg); color:var(--ink); display:flex; flex-direction:column; }
+  header { padding:8px 16px; border-bottom:1px solid var(--line); background:var(--panel); display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+  header a.brand { color:var(--accent); text-decoration:none; font-weight:bold; font-size:18px; }
+  header .spacer { flex:1; }
+  main { flex:1; width:100%; max-width:1600px; margin:0 auto; padding:16px; }
   .sub { color:var(--sub); font-size:13px; }
-  pre.honkoku { white-space:pre-wrap; font-family:inherit; font-size:17px; line-height:2; margin:0; }
-  pre.honkoku.vertical { writing-mode: vertical-rl; height:520px; overflow-x:auto; }
-  dl dt { font-weight:bold; margin-top:8px; } dl dd { margin-left:1em; color:#333; }
-  ul.jobs li { margin:4px 0; }
-  .err { background:#fff3f3; border:1px solid #e0b4b4; padding:14px; white-space:pre-wrap; }
+  button, .btn { background:var(--accent); color:#fff; border:0; padding:8px 16px; font-size:14px; cursor:pointer; border-radius:4px; font-family:inherit; text-decoration:none; display:inline-block; }
+  button.secondary, .btn.secondary { background:#fff; color:var(--ink); border:1px solid var(--line); }
+  button.secondary.active { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
+  button:disabled { opacity:.5; cursor:default; }
+  .seg { display:inline-flex; border:1px solid var(--line); border-radius:4px; overflow:hidden; }
+  .seg button { border:0; border-radius:0; background:#fff; color:var(--ink); padding:6px 12px; }
+  .seg button.active { background:var(--accent); color:#fff; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:14px 18px; margin-bottom:14px; }
+  textarea { width:100%; font-family:inherit; font-size:16px; line-height:1.9; padding:10px; border:1px solid var(--line); background:#fff; border-radius:4px; }
+  input[type=text] { width:100%; padding:8px; border:1px solid var(--line); border-radius:4px; font-family:inherit; }
+  pre.text { white-space:pre-wrap; font-family:inherit; font-size:17px; line-height:2; margin:0; }
+  pre.text.vertical { writing-mode:vertical-rl; height:60vh; overflow-x:auto; }
+  dl.notes dt { font-weight:bold; margin-top:10px; color:var(--accent); } dl.notes dd { margin:2px 0 0 1em; }
+  ul.jobs li { margin:6px 0; }
+  .err { background:#fff3f3; border:1px solid #e0b4b4; padding:14px; white-space:pre-wrap; border-radius:4px; }
+
+  /* ---- 作業画面のレイアウト ---- */
+  .workspace { display:grid; gap:16px; }
+  .workspace.layout-h { grid-template-columns: minmax(320px, 1fr) minmax(360px, 1fr); }
+  .workspace.layout-h .doc-panel { position:sticky; top:12px; align-self:start; max-height:calc(100vh - 90px); }
+  .workspace.layout-v { grid-template-columns: 1fr; }
+  .workspace.layout-v .doc-panel .viewer { height:55vh; max-height:55vh; text-align:center; }
+  .workspace.layout-v .doc-panel img { display:inline-block; }
+  @media (max-width:900px) { .workspace.layout-h { grid-template-columns:1fr; } .workspace.layout-h .doc-panel { position:static; max-height:none; } }
+
+  .doc-panel .viewer { overflow:auto; border:1px solid var(--line); background:#e9e4d8; border-radius:4px; max-height:calc(100vh - 150px); }
+  .doc-panel img { display:block; width:100%; height:auto; transform-origin:0 0; }
+  .toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+  .toolbar input[type=range] { width:140px; }
+
+  .tabs { display:flex; gap:4px; border-bottom:1px solid var(--line); margin-bottom:12px; flex-wrap:wrap; }
+  .tabs button { background:none; color:var(--sub); border:0; border-bottom:3px solid transparent; border-radius:0; padding:8px 12px; font-size:15px; }
+  .tabs button.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:bold; }
+  .tab { display:none; } .tab.active { display:block; }
+  table.lines { width:100%; border-collapse:collapse; font-size:15px; }
+  table.lines th, table.lines td { border-bottom:1px solid var(--line); padding:6px 8px; text-align:left; vertical-align:top; }
+  table.lines td.n { color:var(--sub); width:3em; }
+  details summary { cursor:pointer; color:var(--accent); }
+
+  #overlay { position:fixed; inset:0; background:rgba(246,242,232,.85); display:none; align-items:center; justify-content:center; flex-direction:column; gap:12px; z-index:10; font-size:18px; }
+  #overlay.show { display:flex; }
+  .spinner { width:36px; height:36px; border:4px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
 </style>
 </head>
 <body>
-<header><a href="{{ url_for('index') }}">kobun-reader</a><span class="sub">古典籍 翻刻・現代語訳</span></header>
+<header>
+  <a class="brand" href="{{ url_for('index') }}">Komonjo-Daro</a>
+  <span class="sub">古典籍 翻刻・現代語訳</span>
+  <span class="spacer"></span>
+  {% block headertools %}{% endblock %}
+</header>
 <main>{% block body %}{% endblock %}</main>
+<div id="overlay"><div class="spinner"></div><div id="overlay-msg">処理中…</div></div>
+<script>
+  function showOverlay(msg){ document.getElementById('overlay-msg').textContent = msg; document.getElementById('overlay').classList.add('show'); }
+  document.querySelectorAll('form[data-busy]').forEach(f => f.addEventListener('submit', () => {
+    f.querySelectorAll('button').forEach(b => b.disabled = true);
+    showOverlay(f.dataset.busy);
+  }));
+</script>
+{% block scripts %}{% endblock %}
 </body>
 </html>

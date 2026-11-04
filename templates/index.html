@@ -1,16 +1,16 @@
 {% extends "base.html" %}
 {% block body %}
 <div class="card">
-  <h2>画像を読み込む</h2>
-  <form method="post" action="{{ url_for('ocr') }}" enctype="multipart/form-data">
+  <h2 style="margin-top:0">画像を読み込む</h2>
+  <form method="post" action="{{ url_for('ocr') }}" enctype="multipart/form-data" data-busy="OCR を実行しています（CPUで数秒〜数十秒）…">
     <p><input type="file" name="image" accept=".jpg,.jpeg,.png,.tif,.tiff,.jp2,.bmp" required></p>
     <p><input type="text" name="context" placeholder="補足（資料名・巻・丁など。任意）"></p>
-    <p><button type="submit">OCR を実行</button> <span class="sub">device: {{ device }}　1ページ数秒〜数十秒（CPU）</span></p>
+    <p><button type="submit">OCR を実行</button> <span class="sub">device: {{ device }}</span></p>
   </form>
 </div>
 {% if jobs %}
 <div class="card">
-  <h3>最近の処理</h3>
+  <h3 style="margin-top:0">最近の処理</h3>
   <ul class="jobs">
   {% for j in jobs %}
     <li><a href="{{ url_for('review', job_id=j.id) }}">{{ j.name or j.id }}</a> {% if j.done %}<span class="sub">（現代語訳あり）</span>{% endif %}</li>

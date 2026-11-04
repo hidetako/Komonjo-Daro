@@ -1,49 +1,141 @@
 {% extends "base.html" %}
-{% block title %}{{ job.original_name }} - kobun-reader{% endblock %}
+{% block title %}{{ job.original_name }} - Komonjo-Daro{% endblock %}
+{% block headertools %}
+  <span class="sub">レイアウト</span>
+  <span class="seg" id="layout-seg">
+    <button type="button" data-layout="layout-h" title="左に古文書、右に読み取り">左右</button>
+    <button type="button" data-layout="layout-v" title="上に古文書、下に読み取り">上下</button>
+  </span>
+  {% if job.annotation %}<a class="btn secondary" href="{{ url_for('markdown', job_id=job_id) }}">Markdown</a>{% endif %}
+{% endblock %}
 {% block body %}
-<h2>{{ job.original_name }}</h2>
-<div class="grid">
-  <div>
-    <img class="page" src="{{ url_for('uploads', name=job.image) }}" alt="資料画像">
-    <p class="sub">{{ job.ocr.lines|length }} 行を認識（{{ job.ocr.width }}×{{ job.ocr.height }}px）</p>
-  </div>
-  <div>
-    <form method="post" action="{{ url_for('annotate_job', job_id=job_id) }}">
-      <h3>翻刻（OCR結果。必要なら手で直してから送信）</h3>
-      <textarea name="honkoku">{{ job.edited_honkoku or job.ocr.text }}</textarea>
-      <p><input type="text" name="context" value="{{ job.context }}" placeholder="補足（任意）"></p>
-      <p><label><input type="checkbox" name="use_image" checked> 画像も Claude に送って校訂させる（精度↑・費用↑）</label></p>
-      <p><button type="submit">現代語訳・注釈を作成</button> <span class="sub">数十秒かかります</span></p>
-    </form>
-  </div>
-</div>
-
-{% if job.annotation %}
 {% set a = job.annotation %}
-<div class="card">
-  <h3>翻刻（校訂済）
-    <button type="button" class="secondary" style="font-size:12px;padding:4px 8px" onclick="document.getElementById('hk').classList.toggle('vertical')">縦横切替</button>
-  </h3>
-  <pre id="hk" class="honkoku">{{ a.honkoku }}</pre>
+<div class="workspace layout-h" id="workspace">
+
+  <!-- ===== 古文書 ===== -->
+  <section class="doc-panel card">
+    <div class="toolbar">
+      <strong>{{ job.original_name }}</strong>
+      <span class="spacer" style="flex:1"></span>
+      <label class="sub">拡大 <input type="range" id="zoom" min="100" max="400" value="100" step="10"></label>
+      <span class="sub" id="zoom-val">100%</span>
+      <a class="sub" href="{{ url_for('uploads', name=job.image) }}" target="_blank">原寸で開く</a>
+    </div>
+    <div class="viewer" id="viewer">
+      <img id="page" src="{{ url_for('uploads', name=job.image) }}" alt="資料画像">
+    </div>
+    <p class="sub" style="margin:6px 0 0">{{ job.ocr.lines|length }} 行を認識（{{ job.ocr.width }}×{{ job.ocr.height }}px）</p>
+  </section>
+
+  <!-- ===== 読み取り・解説 ===== -->
+  <section class="read-panel card">
+    <div class="tabs" id="tabs">
+      <button type="button" data-tab="honkoku" class="active">翻刻</button>
+      {% if a %}
+      <button type="button" data-tab="gendaigo">現代語訳</button>
+      <button type="button" data-tab="notes">注釈</button>
+      <button type="button" data-tab="check">修正・不確実</button>
+      <button type="button" data-tab="summary">要約</button>
+      {% endif %}
+      <button type="button" data-tab="edit">{% if a %}再実行{% else %}現代語訳を作成{% endif %}</button>
+    </div>
+
+    <div class="tab active" id="tab-honkoku">
+      {% if a %}
+        <div class="toolbar">
+          <span class="sub">校訂済み翻刻（Claude が画像で確認して修正）</span>
+          <span style="flex:1"></span>
+          <button type="button" class="secondary" id="vtoggle">縦書き</button>
+        </div>
+        <pre id="hk" class="text">{{ a.honkoku }}</pre>
+      {% else %}
+        <p class="sub">OCR 生テキスト（まだ校訂していません。「現代語訳を作成」タブから実行）</p>
+        <pre class="text">{{ job.ocr.text }}</pre>
+      {% endif %}
+    </div>
+
+    {% if a %}
+    <div class="tab" id="tab-gendaigo">
+      <pre class="text" style="font-size:16px">{{ a.gendaigo }}</pre>
+    </div>
+    <div class="tab" id="tab-notes">
+      {% if a.annotations %}
+      <dl class="notes">{% for n in a.annotations %}<dt>{{ n.term }}</dt><dd>{{ n.note }}</dd>{% endfor %}</dl>
+      {% else %}<p class="sub">注釈なし</p>{% endif %}
+    </div>
+    <div class="tab" id="tab-check">
+      <h4 style="margin:0 0 8px">OCRからの修正</h4>
+      {% if a.corrections %}
+      <table class="lines">
+        <tr><th>行</th><th>OCR</th><th>校訂</th><th>根拠</th></tr>
+        {% for c in a.corrections %}<tr><td class="n">{{ c.line }}</td><td>{{ c.ocr }}</td><td><strong>{{ c.fixed }}</strong></td><td class="sub">{{ c.reason }}</td></tr>{% endfor %}
+      </table>
+      {% else %}<p class="sub">修正なし</p>{% endif %}
+      <h4 style="margin:18px 0 8px">不確実な箇所</h4>
+      {% if a.uncertain %}<ul>{% for u in a.uncertain %}<li>{{ u }}</li>{% endfor %}</ul>{% else %}<p class="sub">なし</p>{% endif %}
+    </div>
+    <div class="tab" id="tab-summary">
+      <p style="font-size:16px; line-height:1.9">{{ a.summary }}</p>
+      <p class="sub">推定時代: {{ a.era_guess }}<br>model: {{ a.model }}　tokens in/out: {{ a.input_tokens }}/{{ a.output_tokens }}</p>
+    </div>
+    {% endif %}
+
+    <div class="tab" id="tab-edit">
+      <form method="post" action="{{ url_for('annotate_job', job_id=job_id) }}" data-busy="Claude が校訂・現代語訳・注釈を作成しています（数十秒）…">
+        <p class="sub" style="margin-top:0">OCR 結果を必要なら手で直してから送信してください。明らかな誤読を直しておくと校訂精度が上がります。</p>
+        <textarea name="honkoku" rows="14">{{ job.edited_honkoku or job.ocr.text }}</textarea>
+        <p><input type="text" name="context" value="{{ job.context }}" placeholder="補足（資料名・巻・刊年など。任意）"></p>
+        <p><label><input type="checkbox" name="use_image" checked> 画像も Claude に送って校訂させる（精度↑・費用↑）</label></p>
+        <p><button type="submit">{% if a %}再実行する{% else %}現代語訳・注釈を作成{% endif %}</button></p>
+      </form>
+    </div>
+  </section>
 </div>
-<div class="grid">
-  <div class="card"><h3>現代語訳</h3><pre class="honkoku" style="font-size:15px">{{ a.gendaigo }}</pre></div>
-  <div class="card"><h3>注釈</h3>
-    <dl>{% for n in a.annotations %}<dt>{{ n.term }}</dt><dd>{{ n.note }}</dd>{% endfor %}</dl>
-  </div>
-</div>
-<div class="grid">
-  <div class="card"><h3>OCRからの修正</h3>
-    <ul>{% for c in a.corrections %}<li>{{ c.line }}行目: 「{{ c.ocr }}」→「{{ c.fixed }}」<span class="sub">（{{ c.reason }}）</span></li>{% else %}<li class="sub">なし</li>{% endfor %}</ul>
-  </div>
-  <div class="card"><h3>不確実な箇所</h3>
-    <ul>{% for u in a.uncertain %}<li>{{ u }}</li>{% else %}<li class="sub">なし</li>{% endfor %}</ul>
-  </div>
-</div>
-<div class="card">
-  <h3>要約</h3><p>{{ a.summary }}</p>
-  <p class="sub">推定時代: {{ a.era_guess }}　model: {{ a.model }}　tokens in/out: {{ a.input_tokens }}/{{ a.output_tokens }}
-  　<a href="{{ url_for('markdown', job_id=job_id) }}">Markdown で取得</a></p>
-</div>
-{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+  // レイアウト切替（左右 / 上下）。選択は保存して次回も使う
+  const ws = document.getElementById('workspace');
+  const segButtons = document.querySelectorAll('#layout-seg button');
+  function setLayout(l){
+    ws.classList.remove('layout-h','layout-v'); ws.classList.add(l);
+    segButtons.forEach(b => b.classList.toggle('active', b.dataset.layout === l));
+    try { localStorage.setItem('komonjo-layout', l); } catch(e){}
+  }
+  segButtons.forEach(b => b.addEventListener('click', () => setLayout(b.dataset.layout)));
+  let saved = null; try { saved = localStorage.getItem('komonjo-layout'); } catch(e){}
+  setLayout(saved === 'layout-v' ? 'layout-v' : 'layout-h');
+
+  // タブ
+  const tabButtons = document.querySelectorAll('#tabs button');
+  tabButtons.forEach(b => b.addEventListener('click', () => {
+    tabButtons.forEach(x => x.classList.toggle('active', x === b));
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.id === 'tab-' + b.dataset.tab));
+  }));
+
+  // 画像拡大（スライダー / Ctrl+ホイール）
+  // 左右: 幅いっぱいを100%とする / 上下: ビューアの高さに1ページを収めた状態を100%とする
+  const zoom = document.getElementById('zoom'), img = document.getElementById('page'), zv = document.getElementById('zoom-val'), viewer = document.getElementById('viewer');
+  function applyZoom(){
+    zv.textContent = zoom.value + '%';
+    if (ws.classList.contains('layout-v')) {
+      img.style.width = 'auto'; img.style.height = Math.round(viewer.clientHeight * zoom.value / 100) + 'px';
+    } else {
+      img.style.height = 'auto'; img.style.width = zoom.value + '%';
+    }
+  }
+  segButtons.forEach(b => b.addEventListener('click', applyZoom));
+  window.addEventListener('resize', applyZoom);
+  img.addEventListener('load', applyZoom);
+  applyZoom();
+  zoom.addEventListener('input', applyZoom);
+  viewer.addEventListener('wheel', e => {
+    if (!e.ctrlKey) return; e.preventDefault();
+    zoom.value = Math.min(400, Math.max(100, +zoom.value + (e.deltaY < 0 ? 10 : -10))); applyZoom();
+  }, {passive:false});
+
+  // 縦書き切替
+  const vt = document.getElementById('vtoggle'), hk = document.getElementById('hk');
+  if (vt) vt.addEventListener('click', () => { hk.classList.toggle('vertical'); vt.classList.toggle('active'); });
+</script>
 {% endblock %}
