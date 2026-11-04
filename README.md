@@ -15,7 +15,7 @@
 ## 構成
 
 ```
-kobun-reader/
+Komonjo-Daro/
 ├─ app.py                 Flask アプリ（アップロード → OCR → 確認・修正 → 現代語訳）
 ├─ kobun/
 │   ├─ ocr_ndl.py         NDL-Lite を subprocess で呼ぶラッパー（.txt/.json を解釈）
@@ -37,10 +37,10 @@ PowerShell で1行ずつ実行。
 cd C:\dev
 ```
 ```powershell
-git clone https://github.com/hidetako/Komonjo-Daro kobun-reader
+git clone https://github.com/hidetako/Komonjo-Daro C:\dev\Komonjo-Daro
 ```
 ```powershell
-cd C:\dev\kobun-reader
+cd C:\dev\Komonjo-Daro
 ```
 ```powershell
 git clone https://github.com/ndl-lab/ndlkotenocr-lite vendor\ndlkotenocr-lite
@@ -64,7 +64,7 @@ python app.py
 ```
 ブラウザで http://127.0.0.1:5000 を開く。
 
-> パスに全角文字が含まれると NDL-Lite が起動しないことがある。`C:\dev` 直下に置く。
+> パスに全角文字が含まれると NDL-Lite が起動しないことがある。`C:\dev\Komonjo-Daro` に置く。
 > 一時ファイルもプロジェクト内 `data\tmp` に作るので、Windows のユーザー名が日本語でも動く。
 
 ### GPU（GTX 1650 4GB）で OCR を速くする場合（任意）
@@ -83,7 +83,7 @@ pip install onnxruntime-gpu
 ## セットアップ（Ubuntu / Docker）
 
 ```bash
-git clone https://github.com/hidetako/Komonjo-Daro kobun-reader && cd kobun-reader
+git clone https://github.com/hidetako/Komonjo-Daro && cd Komonjo-Daro
 ```
 ```bash
 cp .env.example .env   # APIキーを記入
