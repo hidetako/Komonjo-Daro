@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ job.original_name }} - Komonjo-Daro{% endblock %}
+{% block title %}{{ job.title }} - Komonjo-Daro{% endblock %}
 {% block headertools %}
   <span class="sub">レイアウト</span>
   <span class="seg" id="layout-seg">
@@ -15,16 +15,19 @@
   <!-- ===== 古文書 ===== -->
   <section class="doc-panel card">
     <div class="toolbar">
-      <strong>{{ job.original_name }}</strong>
-      <span class="spacer" style="flex:1"></span>
+      <form method="post" action="{{ url_for('set_title', job_id=job_id) }}" style="display:flex; gap:6px; flex:1; min-width:200px">
+        <input type="text" name="title" value="{{ job.title }}" title="タイトル（Enterで保存）" style="font-weight:bold">
+      </form>
       <label class="sub">拡大 <input type="range" id="zoom" min="100" max="400" value="100" step="10"></label>
       <span class="sub" id="zoom-val">100%</span>
-      <a class="sub" href="{{ url_for('uploads', name=job.image) }}" target="_blank">原寸で開く</a>
+      <a class="sub" href="{{ url_for('media', job_id=job_id, name=job.original) }}" target="_blank">原寸で開く</a>
     </div>
     <div class="viewer" id="viewer">
-      <img id="page" src="{{ url_for('uploads', name=job.image) }}" alt="資料画像">
+      <img id="page" src="{{ url_for('media', job_id=job_id, name='preview.jpg') }}" alt="資料画像">
     </div>
-    <p class="sub" style="margin:6px 0 0">{{ job.ocr.lines|length }} 行を認識（{{ job.ocr.width }}×{{ job.ocr.height }}px）</p>
+    <p class="sub" style="margin:6px 0 0; display:flex; gap:10px; align-items:center">{{ job.ocr.lines|length }} 行を認識（{{ job.ocr.width }}×{{ job.ocr.height }}px）　{{ job.original_name }}
+      <span style="flex:1"></span>
+      <form method="post" action="{{ url_for('delete_job', job_id=job_id) }}" onsubmit="return confirm('この資料と結果を削除しますか？')"><button type="submit" class="secondary" style="padding:3px 8px; font-size:12px">削除</button></form></p>
   </section>
 
   <!-- ===== 読み取り・解説 ===== -->
@@ -85,7 +88,7 @@
         <p class="sub" style="margin-top:0">OCR 結果を必要なら手で直してから送信してください。明らかな誤読を直しておくと校訂精度が上がります。</p>
         <textarea name="honkoku" rows="14">{{ job.edited_honkoku or job.ocr.text }}</textarea>
         <p><input type="text" name="context" value="{{ job.context }}" placeholder="補足（資料名・巻・刊年など。任意）"></p>
-        <p><label><input type="checkbox" name="use_image" checked> 画像も Claude に送って校訂させる（精度↑・費用↑）</label></p>
+        <p><label><input type="checkbox" name="use_image" {{ 'checked' if send_image }}> 画像も Claude に送って校訂させる（精度↑・費用↑）</label></p>
         <p><button type="submit">{% if a %}再実行する{% else %}現代語訳・注釈を作成{% endif %}</button></p>
       </form>
     </div>

@@ -5,7 +5,7 @@
 1. **翻刻**: NDL古典籍OCR-Lite（国立国会図書館, CC BY 4.0）でくずし字をテキスト化（ローカル・CPUで動作）
 2. **校訂・現代語訳・注釈**: Claude API に画像と翻刻を渡し、構造化JSONで受け取る
 
-という2段構成の自分用ツール。Flask の Web 画面と CLI の両方がある。
+という2段構成の自分用ツール。Windows 用インストーラー（自動アップデート付き）、開発用の Flask 起動、CLI の3通りで使える。
 
 ```
 画像 ──▶ NDL古典籍OCR-Lite ──▶ 翻刻（手で修正可）──▶ Claude ──▶ 校訂翻刻 / 現代語訳 / 注釈 / 不確実箇所
@@ -29,7 +29,27 @@ Komonjo-Daro/
 └─ requirements.txt / .env.example
 ```
 
-## セットアップ（Windows, C:\dev）
+## インストーラー版（Windows）
+
+1. [Releases](https://github.com/hidetako/Komonjo-Daro/releases/latest) から `Komonjo-Daro-Setup.exe` をダウンロードして実行（管理者権限不要）。
+   HP に貼る固定リンク: `https://github.com/hidetako/Komonjo-Daro/releases/latest/download/Komonjo-Daro-Setup.exe`
+2. 起動すると Edge/Chrome のアプリウィンドウが開く。タスクトレイのアイコンから「開く」「終了」。
+3. 右上「設定」で Claude の API キーを入力（「キーを確認」で有効性チェック）。保存フォルダもここで変更できる。
+4. 新しいバージョンが出ると起動時に通知。「今すぐ更新」でダウンロードとサイレントインストールが走り、自動で再起動する。
+
+設定は `%APPDATA%\Komonjo-Daro\config.json`、データは既定で `ドキュメント\Komonjo-Daro\jobs\<ID>\` に保存。
+
+### リリース手順（開発者）
+
+```bash
+# kobun/__init__.py の __version__ を上げてコミットしてから
+git tag v0.2.0
+git push origin v0.2.0
+```
+GitHub Actions（`.github/workflows/release.yml`）が Windows でビルドし、Release に `Komonjo-Daro-Setup.exe` を添付する。
+タグとソースのバージョンが違うとビルドは失敗する。ローカルで作るなら `packaging\build.ps1`（Inno Setup 6 が必要）。
+
+## 開発版セットアップ（Windows, C:\dev）
 
 PowerShell で1行ずつ実行。
 
@@ -94,6 +114,10 @@ docker compose up --build
 Dockerfile 内で NDL-Lite を clone するので vendor の手動取得は不要。http://127.0.0.1:5000
 
 ## Web 画面の使い方
+
+- **読み込む**: 画像をアップロードしてOCR。タイトルと補足を付けられる。
+- **一覧・検索**: 過去の資料をサムネイル付きで一覧。タイトル・翻刻・現代語訳・注釈を横断検索（空白区切りでAND）。
+- **設定**: APIキー、モデル、思考の深さ、保存フォルダ（「参照…」でフォルダ選択）、OCRデバイス、更新確認。
 
 - **レイアウト切替**（右上）: 「左右」= 左に古文書・右に読み取りと解説、「上下」= 上に古文書・下に読み取りと解説。選択はブラウザに記憶される。
 - **拡大**: スライダー、または画像の上で Ctrl+ホイール。「原寸で開く」で別タブに原画像。

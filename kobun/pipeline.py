@@ -19,19 +19,22 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="古典籍画像を翻刻・現代語訳する")
     p.add_argument("image", help="画像ファイル (jpg/png/tif/jp2/bmp)")
     p.add_argument("--out", default="data/results", help="出力ディレクトリ")
-    p.add_argument("--device", default="cpu", choices=["cpu", "cuda"])
+    p.add_argument("--device", default=None, choices=["cpu", "cuda"], help="既定は設定ファイルの値")
     p.add_argument("--no-llm", action="store_true", help="OCRのみ実行")
     p.add_argument("--no-image", action="store_true", help="Claude に画像を送らずテキストのみで処理（通信量削減）")
     p.add_argument("--context", default="", help="資料名・巻数など補足情報")
     p.add_argument("--viz", action="store_true", help="検出枠つき画像も保存")
     args = p.parse_args(argv)
 
+    from . import config as _config
+    device = args.device or _config.load().get("device", "cpu")
+
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     stem = Path(args.image).stem
 
-    print(f"[1/2] OCR (device={args.device}) ...", file=sys.stderr)
-    ocr = run_ocr(args.image, device=args.device, viz=args.viz)
+    print(f"[1/2] OCR (device={device}) ...", file=sys.stderr)
+    ocr = run_ocr(args.image, device=device, viz=args.viz)
     print(f"      {len(ocr.lines)} 行を認識", file=sys.stderr)
     result = {"image": str(Path(args.image).resolve()), "ocr": ocr.to_dict()}
 

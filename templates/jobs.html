@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}一覧・検索 - Komonjo-Daro{% endblock %}
+{% block body %}
+<div class="card">
+  <form method="get" action="{{ url_for('jobs') }}" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+    <input type="text" name="q" value="{{ q }}" placeholder="タイトル・翻刻・現代語訳・注釈を検索（空白区切りで AND）" style="flex:1; min-width:240px">
+    <label class="sub"><input type="checkbox" name="only" value="ann" {{ 'checked' if only }}> 現代語訳ありのみ</label>
+    <button type="submit">検索</button>
+    {% if q or only %}<a class="btn secondary" href="{{ url_for('jobs') }}">解除</a>{% endif %}
+  </form>
+</div>
+<p class="sub">{{ jobs|length }} 件</p>
+<div class="cards">
+{% for j in jobs %}
+  <a class="cardj" href="{{ url_for('review', job_id=j.id) }}">
+    <div class="thumb"><img src="{{ url_for('media', job_id=j.id, name='thumb.jpg') }}" alt=""></div>
+    <div class="meta">
+      <div class="title">{{ j.title }}</div>
+      <div class="sub">{{ j.created_str }}{% if j.has_annotation %}　現代語訳あり{% endif %}</div>
+      {% if j.summary %}<div class="snip">{{ j.summary }}</div>{% endif %}
+    </div>
+  </a>
+{% else %}
+  <p class="sub">該当なし</p>
+{% endfor %}
+</div>
+{% endblock %}

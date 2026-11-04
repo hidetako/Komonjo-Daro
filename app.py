@@ -1,50 +1,53 @@
-"""自分用 Flask アプリ: 画像アップロード → OCR → 翻刻を手で直す → Claude で現代語訳・注釈。
+"""Komonjo-Daro Web アプリ（自分用・ローカル）。
 
-起動:  python app.py        （http://127.0.0.1:5000）
+開発時:  python app.py        （http://127.0.0.1:5000）
+配布版:  desktop.py から起動（空きポート・ブラウザ自動起動・トレイアイコン）
 """
 from __future__ import annotations
 
-import json
 import os
+import subprocess
+import sys
+import tempfile
 import uuid
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Flask, abort, redirect, render_template, request, send_from_directory, url_for
+from flask import Flask, abort, flash, jsonify, redirect, render_template, request, send_file, url_for
 
+from kobun import __version__
+from kobun import config as config_mod
 from kobun.ocr_ndl import NdlLiteNotFound, run_ocr
+from kobun.store import Store
+from kobun.updater import UpdateState, download_and_install, exit_app
 
 load_dotenv()
 
-ROOT = Path(__file__).resolve().parent
-UPLOADS = ROOT / "data" / "uploads"
-RESULTS = ROOT / "data" / "results"
-UPLOADS.mkdir(parents=True, exist_ok=True)
-RESULTS.mkdir(parents=True, exist_ok=True)
-
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024
-DEVICE = os.environ.get("KOBUN_DEVICE", "cpu")
+app.config["MAX_CONTENT_LENGTH"] = 80 * 1024 * 1024
+app.secret_key = os.environ.get("KOBUN_SECRET", "komonjo-daro-local")
+updates = UpdateState()
 
 
-def load_job(job_id: str) -> dict:
-    f = RESULTS / f"{job_id}.json"
-    if not f.exists():
-        abort(404)
-    return json.loads(f.read_text(encoding="utf-8"))
+def cfg() -> dict:
+    return config_mod.load()
 
 
-def save_job(job_id: str, data: dict) -> None:
-    (RESULTS / f"{job_id}.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+def store() -> Store:
+    return Store(cfg()["data_dir"])
 
 
+@app.context_processor
+def inject_globals():
+    return {"version": __version__, "updates": updates, "is_frozen": config_mod.IS_FROZEN}
+
+
+# ---------- 読み込み ----------
 @app.get("/")
 def index():
-    jobs = []
-    for f in sorted(RESULTS.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)[:30]:
-        d = json.loads(f.read_text(encoding="utf-8"))
-        jobs.append({"id": f.stem, "name": d.get("original_name", ""), "done": "annotation" in d})
-    return render_template("index.html", jobs=jobs, device=DEVICE)
+    recent = store().list()[:8]
+    c = cfg()
+    return render_template("index.html", recent=recent, device=c["device"], has_key=bool(c["api_key"]))
 
 
 @app.post("/ocr")
@@ -52,40 +55,69 @@ def ocr():
     file = request.files.get("image")
     if not file or not file.filename:
         return redirect(url_for("index"))
-    ext = Path(file.filename).suffix.lower() or ".jpg"
-    job_id = uuid.uuid4().hex[:12]
-    img_path = UPLOADS / f"{job_id}{ext}"
-    file.save(img_path)
+    c = cfg()
+    tmp = Path(tempfile.gettempdir()) / f"komonjo_{uuid.uuid4().hex}{Path(file.filename).suffix.lower() or '.jpg'}"
+    file.save(tmp)
+    st = store()
     try:
-        result = run_ocr(img_path, device=DEVICE)
+        job_id = st.create(tmp, file.filename, title=request.form.get("title", ""), context=request.form.get("context", ""))
+        job = st.load(job_id)
+        result = run_ocr(st.media_path(job_id, job["original"]), device=c["device"])
     except NdlLiteNotFound as e:
         return render_template("error.html", message=str(e)), 500
     except Exception as e:  # noqa: BLE001
         return render_template("error.html", message=f"OCRに失敗しました: {e}"), 500
-    save_job(job_id, {
-        "original_name": file.filename,
-        "image": img_path.name,
-        "context": request.form.get("context", ""),
-        "ocr": result.to_dict(),
-    })
+    finally:
+        tmp.unlink(missing_ok=True)
+    job["ocr"] = result.to_dict()
+    st.save(job_id, job)
     return redirect(url_for("review", job_id=job_id))
 
 
+# ---------- 一覧・検索 ----------
+@app.get("/jobs")
+def jobs():
+    q = request.args.get("q", "")
+    only = request.args.get("only") == "ann"
+    return render_template("jobs.html", jobs=store().list(q, only), q=q, only=only)
+
+
+# ---------- 個別ページ ----------
 @app.get("/job/<job_id>")
 def review(job_id):
-    job = load_job(job_id)
-    return render_template("review.html", job_id=job_id, job=job)
+    try:
+        job = store().load(job_id)
+    except KeyError:
+        abort(404)
+    return render_template("review.html", job_id=job_id, job=job, send_image=cfg()["send_image"])
+
+
+@app.post("/job/<job_id>/title")
+def set_title(job_id):
+    st = store()
+    job = st.load(job_id)
+    job["title"] = request.form.get("title", "").strip() or job["title"]
+    st.save(job_id, job)
+    return redirect(url_for("review", job_id=job_id))
+
+
+@app.post("/job/<job_id>/delete")
+def delete_job(job_id):
+    store().delete(job_id)
+    flash("削除しました")
+    return redirect(url_for("jobs"))
 
 
 @app.post("/job/<job_id>/annotate")
 def annotate_job(job_id):
     from kobun.annotate import annotate
 
-    job = load_job(job_id)
+    st = store()
+    job = st.load(job_id)
     text = request.form.get("honkoku", job["ocr"]["text"])
     context = request.form.get("context", job.get("context", ""))
     use_image = request.form.get("use_image") == "on"
-    img = UPLOADS / job["image"] if use_image else None
+    img = st.media_path(job_id, "preview.jpg") if use_image else None
     try:
         ann = annotate(text, img, context=context)
     except Exception as e:  # noqa: BLE001
@@ -93,7 +125,7 @@ def annotate_job(job_id):
     job["edited_honkoku"] = text
     job["context"] = context
     job["annotation"] = ann.to_dict()
-    save_job(job_id, job)
+    st.save(job_id, job)
     return redirect(url_for("review", job_id=job_id))
 
 
@@ -101,17 +133,143 @@ def annotate_job(job_id):
 def markdown(job_id):
     from kobun.annotate import Annotation
 
-    job = load_job(job_id)
+    job = store().load(job_id)
     if "annotation" not in job:
         abort(404)
-    md = Annotation(**job["annotation"]).to_markdown()
+    md = f"# {job['title']}\n\n" + Annotation(**job["annotation"]).to_markdown()
     return md, 200, {"Content-Type": "text/markdown; charset=utf-8"}
 
 
-@app.get("/uploads/<name>")
-def uploads(name):
-    return send_from_directory(UPLOADS, name)
+@app.get("/media/<job_id>/<name>")
+def media(job_id, name):
+    try:
+        p = store().media_path(job_id, name)
+    except KeyError:
+        abort(404)
+    if not p.exists():
+        abort(404)
+    return send_file(str(p), max_age=3600)
+
+
+# ---------- 設定 ----------
+@app.get("/settings")
+def settings():
+    c = cfg()
+    return render_template("settings.html", c=c, masked=config_mod.mask_key(c["api_key"]),
+                           config_path=str(config_mod.config_path()))
+
+
+@app.post("/settings")
+def settings_save():
+    c = cfg()
+    old_dir = c["data_dir"]
+    new_key = request.form.get("api_key", "").strip()
+    if new_key:
+        c["api_key"] = new_key
+    if request.form.get("clear_key") == "on":
+        c["api_key"] = ""
+    c["model"] = request.form.get("model", c["model"]).strip() or c["model"]
+    c["effort"] = request.form.get("effort", c["effort"])
+    c["device"] = request.form.get("device", c["device"])
+    c["send_image"] = request.form.get("send_image") == "on"
+    c["auto_check_updates"] = request.form.get("auto_check_updates") == "on"
+    new_dir = request.form.get("data_dir", "").strip() or old_dir
+    moved = 0
+    if Path(new_dir) != Path(old_dir):
+        try:
+            Path(new_dir).mkdir(parents=True, exist_ok=True)
+            if request.form.get("move_data") == "on":
+                moved = Store(old_dir).move_to(new_dir)
+        except OSError as e:
+            flash(f"保存先を変更できません: {e}")
+            return redirect(url_for("settings"))
+    c["data_dir"] = new_dir
+    config_mod.save(c)
+    flash("保存しました" + (f"（{moved} 件を移動）" if moved else ""))
+    return redirect(url_for("settings"))
+
+
+@app.post("/settings/browse")
+def browse_folder():
+    """OS のフォルダ選択ダイアログを開き、選ばれたパスを返す（ローカル実行前提）。"""
+    start = request.form.get("start", "") or cfg()["data_dir"]
+    path = pick_folder(start)
+    return jsonify({"path": path})
+
+
+def pick_folder(start: str) -> str:
+    if sys.platform == "win32":
+        ps = (
+            "Add-Type -AssemblyName System.Windows.Forms;"
+            "$d = New-Object System.Windows.Forms.FolderBrowserDialog;"
+            "$d.Description = '保存フォルダを選んでください';"
+            f"$d.SelectedPath = '{start.replace(chr(39), chr(39) * 2)}';"
+            "$d.ShowNewFolderButton = $true;"
+            "if ($d.ShowDialog() -eq 'OK') { [Console]::Out.Write($d.SelectedPath) }"
+        )
+        r = subprocess.run(["powershell", "-NoProfile", "-STA", "-Command", ps], capture_output=True, text=True, encoding="utf-8", errors="replace")
+        return r.stdout.strip()
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk(); root.withdraw(); root.attributes("-topmost", True)
+        p = filedialog.askdirectory(initialdir=start) or ""
+        root.destroy()
+        return p
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+@app.post("/settings/test_key")
+def test_key():
+    """入力中のキーで軽い呼び出しをして有効性を確認する。"""
+    import anthropic
+
+    key = request.form.get("api_key", "").strip() or cfg()["api_key"]
+    if not key:
+        return jsonify({"ok": False, "message": "キーが未入力です"})
+    try:
+        anthropic.Anthropic(api_key=key).models.list(limit=1)
+        return jsonify({"ok": True, "message": "有効なキーです"})
+    except anthropic.AuthenticationError:
+        return jsonify({"ok": False, "message": "キーが無効です"})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "message": f"確認できませんでした: {e}"})
+
+
+# ---------- 更新 ----------
+@app.post("/update/check")
+def update_check():
+    updates.check()
+    return redirect(url_for("settings"))
+
+
+@app.post("/update/apply")
+def update_apply():
+    if not updates.available:
+        flash("新しいバージョンはありません")
+        return redirect(url_for("settings"))
+    try:
+        download_and_install(updates.latest)
+    except Exception as e:  # noqa: BLE001
+        flash(str(e))
+        return redirect(url_for("settings"))
+    exit_app(1.5)
+    return render_template("message.html", title="更新中",
+                           message="インストーラーを起動しました。アプリは一度終了し、更新後に自動で再起動します。")
+
+
+@app.post("/quit")
+def quit_app():
+    exit_app(0.5)
+    return render_template("message.html", title="終了", message="Komonjo-Daro を終了しました。このタブは閉じて構いません。")
+
+
+def create_app():
+    if cfg().get("auto_check_updates", True) and config_mod.IS_FROZEN:
+        updates.check_async()
+    return app
 
 
 if __name__ == "__main__":
-    app.run(host=os.environ.get("KOBUN_HOST", "127.0.0.1"), port=int(os.environ.get("KOBUN_PORT", "5000")), debug=False)
+    create_app().run(host=os.environ.get("KOBUN_HOST", "127.0.0.1"), port=int(os.environ.get("KOBUN_PORT", "5000")), debug=False)

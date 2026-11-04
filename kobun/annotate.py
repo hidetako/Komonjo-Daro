@@ -12,7 +12,9 @@ import anthropic
 from dotenv import load_dotenv
 from PIL import Image, ImageOps
 
-# CLI から呼ばれたときも .env（プロジェクト直下）を読む
+from . import config as _config
+
+# 開発時は .env（プロジェクト直下）も読む
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 MODEL = os.environ.get("KOBUN_MODEL", "claude-opus-5-5")
@@ -129,22 +131,29 @@ def build_user_content(ocr_text: str, image_path: str | Path | None, context: st
     return content
 
 
-def annotate(ocr_text: str, image_path: str | Path | None = None, context: str = "", client=None) -> Annotation:
-    """OCRテキストと画像を Claude に送り、構造化された校訂・現代語訳・注釈を返す。"""
+def annotate(ocr_text: str, image_path: str | Path | None = None, context: str = "", client=None,
+             model: str | None = None, effort: str | None = None, api_key: str | None = None) -> Annotation:
+    """OCRテキストと画像を Claude に送り、構造化された校訂・現代語訳・注釈を返す。
+
+    APIキー・モデル・effort は引数 > 設定ファイル（設定画面） > 環境変数 の順で決まる。
+    """
+    cfg = _config.load()
+    model = model or cfg.get("model") or MODEL
+    effort = effort or cfg.get("effort") or EFFORT
     if client is None:
-        if not os.environ.get("ANTHROPIC_API_KEY") and not os.environ.get("ANTHROPIC_AUTH_TOKEN"):
+        key = api_key or cfg.get("api_key") or os.environ.get("ANTHROPIC_API_KEY") or ""
+        if not key and not os.environ.get("ANTHROPIC_AUTH_TOKEN"):
             raise RuntimeError(
-                "ANTHROPIC_API_KEY が設定されていません。プロジェクト直下の .env に\n"
-                "  ANTHROPIC_API_KEY=sk-ant-...\n"
-                "を記入してください（.env.example をコピーして作成）。"
+                "Claude の API キーが設定されていません。画面右上の「設定」から入力してください。\n"
+                "（開発版は .env の ANTHROPIC_API_KEY でも可）"
             )
-        client = anthropic.Anthropic()
+        client = anthropic.Anthropic(api_key=key) if key else anthropic.Anthropic()
     with client.messages.stream(
-        model=MODEL,
+        model=model,
         max_tokens=32000,
         system=[{"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": build_user_content(ocr_text, image_path, context)}],
-        output_config={"effort": EFFORT, "format": {"type": "json_schema", "schema": OUTPUT_SCHEMA}},
+        output_config={"effort": effort, "format": {"type": "json_schema", "schema": OUTPUT_SCHEMA}},
     ) as stream:
         response = stream.get_final_message()
 

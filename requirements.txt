@@ -17,3 +17,5 @@ protobuf
 flask>=3.0
 anthropic>=0.80
 python-dotenv
+# --- デスクトップ版（トレイアイコン）
+pystray

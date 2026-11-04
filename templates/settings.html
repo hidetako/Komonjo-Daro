@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}設定 - Komonjo-Daro{% endblock %}
+{% block body %}
+<form method="post" action="{{ url_for('settings_save') }}" id="settings-form">
+<div class="card">
+  <h3 style="margin-top:0">Claude API</h3>
+  <div class="form-row">
+    <label class="k">API キー</label>
+    <div>
+      <input type="password" name="api_key" id="api_key" placeholder="{{ masked or 'sk-ant-... を貼り付け' }}" autocomplete="off">
+      <p class="sub" style="margin:6px 0 0">{% if masked %}現在: {{ masked }}（変更しないなら空のまま）{% else %}未設定。<a href="https://console.anthropic.com/settings/keys" target="_blank">Anthropic Console</a> で発行できます。{% endif %}
+        <button type="button" class="secondary" id="test-key" style="padding:4px 10px; font-size:13px">キーを確認</button> <span id="test-result"></span></p>
+      {% if masked %}<label class="sub"><input type="checkbox" name="clear_key"> キーを削除する</label>{% endif %}
+    </div>
+    <label class="k">モデル</label>
+    <input type="text" name="model" value="{{ c.model }}">
+    <label class="k">思考の深さ</label>
+    <select name="effort">{% for e in ['low','medium','high','xhigh','max'] %}<option value="{{ e }}" {{ 'selected' if c.effort == e }}>{{ e }}</option>{% endfor %}</select>
+    <label class="k">画像を同送</label>
+    <label><input type="checkbox" name="send_image" {{ 'checked' if c.send_image }}> 既定で画像も Claude に送る（校訂精度↑・費用↑）</label>
+  </div>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">保存先</h3>
+  <div class="form-row">
+    <label class="k">保存フォルダ</label>
+    <div style="display:flex; gap:8px">
+      <input type="text" name="data_dir" id="data_dir" value="{{ c.data_dir }}">
+      <button type="button" class="secondary" id="browse">参照…</button>
+    </div>
+    <span></span>
+    <label class="sub"><input type="checkbox" name="move_data" checked> 変更時に既存データも新しいフォルダへ移動する</label>
+  </div>
+  <p class="sub">画像・OCR結果・現代語訳はここに <code>jobs/&lt;ID&gt;/</code> として保存されます。OneDrive 配下は同期で壊れることがあるので避けてください。</p>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">OCR</h3>
+  <div class="form-row">
+    <label class="k">デバイス</label>
+    <select name="device"><option value="cpu" {{ 'selected' if c.device == 'cpu' }}>cpu（標準）</option><option value="cuda" {{ 'selected' if c.device == 'cuda' }}>cuda（onnxruntime-gpu 導入時のみ）</option></select>
+  </div>
+</div>
+<div class="card">
+  <h3 style="margin-top:0">アップデート</h3>
+  <p>現在のバージョン: <strong>v{{ version }}</strong>
+    {% if updates.available %}<span class="ng">　新しい v{{ updates.latest.version }} があります</span>{% elif updates.checked and not updates.error %}<span class="ok">　最新です</span>{% endif %}
+    {% if updates.error %}<span class="sub">　{{ updates.error }}</span>{% endif %}</p>
+  <label><input type="checkbox" name="auto_check_updates" {{ 'checked' if c.auto_check_updates }}> 起動時に新しいバージョンを確認する</label>
+</div>
+<p><button type="submit">保存</button> <span class="sub">設定ファイル: {{ config_path }}</span></p>
+</form>
+<div class="card" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
+  <form method="post" action="{{ url_for('update_check') }}"><button type="submit" class="secondary">更新を確認</button></form>
+  {% if updates.available %}<form method="post" action="{{ url_for('update_apply') }}" data-busy="インストーラーをダウンロードしています…"><button type="submit">v{{ updates.latest.version }} に更新</button></form>{% endif %}
+  {% if is_frozen %}<form method="post" action="{{ url_for('quit_app') }}" onsubmit="return confirm('Komonjo-Daro を終了しますか？')"><button type="submit" class="secondary">アプリを終了</button></form>{% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  document.getElementById('browse').addEventListener('click', async () => {
+    const fd = new FormData(); fd.append('start', document.getElementById('data_dir').value);
+    const r = await fetch('{{ url_for('browse_folder') }}', {method:'POST', body: fd});
+    const j = await r.json(); if (j.path) document.getElementById('data_dir').value = j.path;
+  });
+  document.getElementById('test-key').addEventListener('click', async () => {
+    const out = document.getElementById('test-result'); out.textContent = '確認中…'; out.className = 'sub';
+    const fd = new FormData(); fd.append('api_key', document.getElementById('api_key').value);
+    const r = await fetch('{{ url_for('test_key') }}', {method:'POST', body: fd});
+    const j = await r.json(); out.textContent = j.message; out.className = j.ok ? 'ok' : 'ng';
+  });
+</script>
+{% endblock %}

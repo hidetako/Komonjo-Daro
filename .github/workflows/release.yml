@@ -1,0 +1,72 @@
+name: Build Windows installer
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone NDL古典籍OCR-Lite (CC BY 4.0, NDL)
+        run: git clone --depth 1 https://github.com/ndl-lab/ndlkotenocr-lite vendor/ndlkotenocr-lite
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Run tests
+        run: python -m pytest -q tests
+
+      - name: Version from tag
+        id: ver
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then V="${GITHUB_REF#refs/tags/v}"; else V=$(python -c "import kobun; print(kobun.__version__)"); fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          PYV=$(python -c "import kobun; print(kobun.__version__)")
+          if [[ "${GITHUB_REF}" == refs/tags/v* && "$V" != "$PYV" ]]; then echo "タグ v$V と kobun/__init__.py の __version__ ($PYV) が一致しません"; exit 1; fi
+
+      - name: PyInstaller
+        run: pyinstaller --noconfirm --clean packaging/komonjo.spec
+
+      - name: Smoke test (frozen app starts and answers)
+        shell: pwsh
+        run: |
+          $env:KOBUN_PORT = "5077"
+          $env:KOBUN_CONFIG_DIR = "$env:RUNNER_TEMP\cfg"
+          $env:KOBUN_DATA_DIR = "$env:RUNNER_TEMP\data"
+          $p = Start-Process -FilePath dist\Komonjo-Daro\Komonjo-Daro.exe -PassThru
+          $ok = $false
+          foreach ($i in 1..60) { try { $r = Invoke-WebRequest http://127.0.0.1:5077/ -UseBasicParsing -TimeoutSec 2; if ($r.StatusCode -eq 200) { $ok = $true; break } } catch { Start-Sleep -Seconds 1 } }
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          if (-not $ok) { throw "frozen app did not respond" }
+
+      - name: Inno Setup
+        run: |
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ steps.ver.outputs.version }}" packaging\installer.iss
+          Copy-Item dist\installer\Komonjo-Daro-Setup.exe "dist\installer\Komonjo-Daro-Setup-v${{ steps.ver.outputs.version }}.exe"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Komonjo-Daro-Setup
+          path: dist/installer/*.exe
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/installer/*.exe
+          generate_release_notes: true

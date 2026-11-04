@@ -14,7 +14,26 @@
   header .spacer { flex:1; }
   main { flex:1; width:100%; max-width:1600px; margin:0 auto; padding:16px; }
   .sub { color:var(--sub); font-size:13px; }
+  nav.nav { display:flex; gap:4px; margin-left:12px; }
+  nav.nav a { color:var(--ink); text-decoration:none; padding:6px 12px; border-radius:4px; font-size:15px; }
+  nav.nav a.on { background:var(--accent-soft); color:var(--accent); font-weight:bold; }
+  .banner { background:#fff6d6; border-bottom:1px solid #e6d79a; padding:8px 16px; display:flex; gap:12px; align-items:center; }
+  .flash { background:#e8f3e8; border-bottom:1px solid #bcd6bc; padding:8px 16px; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:14px; }
+  .cardj { background:var(--panel); border:1px solid var(--line); border-radius:6px; overflow:hidden; text-decoration:none; color:var(--ink); display:flex; flex-direction:column; }
+  .cardj:hover { border-color:var(--accent); }
+  .cardj .thumb { height:200px; background:#e9e4d8; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .cardj .thumb img { max-width:100%; max-height:100%; }
+  .cardj .meta { padding:10px 12px; }
+  .cardj .title { font-weight:bold; margin-bottom:4px; }
+  .cardj .snip { font-size:13px; color:var(--sub); line-height:1.5; max-height:4.5em; overflow:hidden; }
+  .form-row { display:grid; grid-template-columns:160px 1fr; gap:10px 14px; align-items:center; margin-bottom:12px; }
+  @media (max-width:700px){ .form-row { grid-template-columns:1fr; } }
+  .form-row label.k { font-weight:bold; }
+  select { padding:8px; border:1px solid var(--line); border-radius:4px; font-family:inherit; font-size:14px; }
+  .ok { color:#2a6e2a; } .ng { color:var(--accent); }
   button, .btn { background:var(--accent); color:#fff; border:0; padding:8px 16px; font-size:14px; cursor:pointer; border-radius:4px; font-family:inherit; text-decoration:none; display:inline-block; }
+  button, .btn { white-space:nowrap; }
   button.secondary, .btn.secondary { background:#fff; color:var(--ink); border:1px solid var(--line); }
   button.secondary.active { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
   button:disabled { opacity:.5; cursor:default; }
@@ -39,7 +58,7 @@
   .workspace.layout-v .doc-panel img { display:inline-block; }
   @media (max-width:900px) { .workspace.layout-h { grid-template-columns:1fr; } .workspace.layout-h .doc-panel { position:static; max-height:none; } }
 
-  .doc-panel .viewer { overflow:auto; border:1px solid var(--line); background:#e9e4d8; border-radius:4px; max-height:calc(100vh - 150px); }
+  .doc-panel .viewer { overflow:auto; border:1px solid var(--line); background:#e9e4d8; border-radius:4px; max-height:calc(100vh - 200px); }
   .doc-panel img { display:block; width:100%; height:auto; transform-origin:0 0; }
   .toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
   .toolbar input[type=range] { width:140px; }
@@ -62,10 +81,20 @@
 <body>
 <header>
   <a class="brand" href="{{ url_for('index') }}">Komonjo-Daro</a>
-  <span class="sub">古典籍 翻刻・現代語訳</span>
+  <nav class="nav">
+    <a href="{{ url_for('index') }}" class="{{ 'on' if request.endpoint == 'index' }}">読み込む</a>
+    <a href="{{ url_for('jobs') }}" class="{{ 'on' if request.endpoint == 'jobs' }}">一覧・検索</a>
+    <a href="{{ url_for('settings') }}" class="{{ 'on' if request.endpoint == 'settings' }}">設定</a>
+  </nav>
   <span class="spacer"></span>
   {% block headertools %}{% endblock %}
 </header>
+{% if updates.available %}
+<div class="banner">新しいバージョン v{{ updates.latest.version }} があります（現在 v{{ version }}）。
+  <form method="post" action="{{ url_for('update_apply') }}" style="display:inline" data-busy="インストーラーをダウンロードしています…"><button type="submit">今すぐ更新</button></form>
+  <a class="sub" href="{{ updates.latest.page }}" target="_blank">変更内容</a></div>
+{% endif %}
+{% with msgs = get_flashed_messages() %}{% if msgs %}<div class="flash">{% for m in msgs %}<div>{{ m }}</div>{% endfor %}</div>{% endif %}{% endwith %}
 <main>{% block body %}{% endblock %}</main>
 <div id="overlay"><div class="spinner"></div><div id="overlay-msg">処理中…</div></div>
 <script>
