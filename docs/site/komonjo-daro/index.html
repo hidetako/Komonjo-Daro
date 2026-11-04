@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Komonjo-Daro｜くずし字の古典籍を翻刻して現代語で読む Windows アプリ — NDL古典籍OCR-Lite × Claude・MIT｜よろづソリューションズ</title>
+<meta name="description" content="Komonjo-Daro は、版本・写本のページ画像からくずし字を翻刻し、現代語訳と注釈を付ける Windows アプリ。OCR は国立国会図書館の NDL古典籍OCR-Lite がパソコンの中だけで実行。校訂・現代語訳は利用者自身の Anthropic API キーで Claude が行います。本体は無料（MIT）。">
+<link rel="canonical" href="https://www.yorozusolutions.com/apps/komonjo-daro/">
+<meta name="theme-color" content="#17150f">
+<meta property="og:title" content="Komonjo-Daro｜くずし字の古典籍を翻刻して現代語で読む Windows アプリ — NDL古典籍OCR-Lite × Claude・MIT｜よろづソリューションズ">
+<meta property="og:description" content="版本・写本のページ画像からくずし字を翻刻し、現代語訳と注釈を付ける Windows アプリ。OCR はオフライン、現代語訳は利用者自身の API キーで。本体は無料（MIT）。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://www.yorozusolutions.com/apps/komonjo-daro/">
+<meta property="og:image" content="https://www.yorozusolutions.com/assets/og/og-default.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="よろづソリューションズ">
+<meta property="og:site_name" content="よろづソリューションズ">
+<meta property="og:locale" content="ja_JP">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@yorozusolutions">
+<meta name="twitter:title" content="Komonjo-Daro｜くずし字の古典籍を翻刻して現代語で読む Windows アプリ｜よろづソリューションズ">
+<meta name="twitter:description" content="版本・写本のページ画像からくずし字を翻刻し、現代語訳と注釈を付ける Windows アプリ。OCR はオフライン、現代語訳は利用者自身の API キーで。本体は無料（MIT）。">
+<meta name="twitter:image" content="https://www.yorozusolutions.com/assets/og/og-default.png">
+<link rel="icon" href="/assets/brush/enso.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500&family=Zen+Old+Mincho:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/style.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://www.yorozusolutions.com/#org",
+      "name": "よろづソリューションズ",
+      "legalName": "株式会社よろづや",
+      "alternateName": "Yorozu Solutions",
+      "url": "https://www.yorozusolutions.com/",
+      "logo": "https://www.yorozusolutions.com/assets/og/og-default.png",
+      "sameAs": [
+        "https://x.com/yorozusolutions",
+        "https://www.youtube.com/@Issoku_The_un_do",
+        "https://github.com/hidetako"
+      ]
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "ホーム", "item": "https://www.yorozusolutions.com/" },
+        { "@type": "ListItem", "position": 2, "name": "プロダクト", "item": "https://www.yorozusolutions.com/apps/" },
+        { "@type": "ListItem", "position": 3, "name": "Komonjo-Daro", "item": "https://www.yorozusolutions.com/apps/komonjo-daro/" }
+      ]
+    },
+    {
+      "@type": "SoftwareApplication",
+      "name": "Komonjo-Daro",
+      "operatingSystem": "Windows 10, Windows 11",
+      "applicationCategory": "EducationalApplication",
+      "softwareVersion": "0.2.0",
+      "url": "https://www.yorozusolutions.com/apps/komonjo-daro/",
+      "downloadUrl": "https://github.com/hidetako/Komonjo-Daro/releases/latest/download/Komonjo-Daro-Setup.exe",
+      "codeRepository": "https://github.com/hidetako/Komonjo-Daro",
+      "license": "https://opensource.org/licenses/MIT",
+      "softwareRequirements": "現代語訳・注釈には Anthropic API キーが必要（OCR のみなら不要）",
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "JPY" },
+      "description": "くずし字の古典籍を翻刻して現代語で読む Windows アプリ。NDL古典籍OCR-Lite によるオフライン OCR と、Claude による校訂・現代語訳・注釈。",
+      "image": "https://raw.githubusercontent.com/hidetako/Komonjo-Daro/main/docs/images/icon-1024.png",
+      "screenshot": "https://raw.githubusercontent.com/hidetako/Komonjo-Daro/main/docs/images/komonjo-01-layout-h.png",
+      "author": { "@id": "https://www.yorozusolutions.com/#org" },
+      "inLanguage": "ja"
+    }
+  ]
+}
+</script>
+</head>
+<body id="top">
+
+<!-- 固定ヘッダー -->
+<div class="site-header-fixed">
+  <a class="shf-brand" href="/">
+    <img src="/assets/brush/enso.png" alt="" width="32" height="32">
+    <span class="shf-name serif">よろづソリューションズ</span>
+  </a>
+  <nav class="shf-nav" aria-label="グローバル">
+    <a class="shf-link" href="/apps/">プロダクト</a>
+    <a class="shf-btn shf-btn-primary" href="https://stresscheck.yorozusolutions.com" target="_blank" rel="noopener noreferrer">お問い合わせ</a>
+    <a class="shf-btn shf-btn-outline" href="https://the-un-do.vercel.app/" target="_blank" rel="noopener noreferrer">坐雲堂に入る</a>
+  </nav>
+</div>
+
+<main class="detail">
+  <nav class="crumbs" aria-label="パンくず"><a href="/">ホーム</a><span>›</span><a href="/apps/">プロダクト</a><span>›</span><span aria-current="page">Komonjo-Daro</span></nav>
+
+  <header class="detail-hero">
+    <div class="container">
+      <p class="app-label">読む・訳す道具</p>
+      <h1 class="serif">Komonjo-Daro</h1>
+      <p class="detail-lead"><span class="phrase">くずし字を起こし、</span><span class="phrase">現代語で読む。</span></p>
+      <p class="detail-meta">Windows 10／11（64bit）・v0.2.0・アプリ本体は無料・オープンソース（MIT）・OCR はオフライン・現代語訳は利用者自身の Anthropic API キーで動作</p>
+      <p class="app-links">
+        <a class="btn btn-blue" href="https://github.com/hidetako/Komonjo-Daro/releases/latest/download/Komonjo-Daro-Setup.exe" target="_blank" rel="noopener noreferrer">ダウンロード（Windows）↓</a>
+        <a class="btn btn-ink" href="https://github.com/hidetako/Komonjo-Daro" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
+      </p>
+      <p class="detail-note">インストーラー <code>Komonjo-Daro-Setup.exe</code> は管理者権限なしで入ります。新しい版が出ると起動時に知らせ、「今すぐ更新」で入れ替わります。</p>
+    </div>
+  </header>
+
+  <section class="detail-section" id="about">
+    <div class="container">
+      <p class="apps-group-label">Komonjo-Daro — 古典籍のページを、読める文章に</p>
+      <div class="bk-intro">
+        <p>Komonjo-Daro は、江戸期以前の和古書・写本・漢籍のページ画像を読み込み、くずし字を翻刻して現代語訳と注釈を付ける Windows アプリです。仕組みは二段構えです。文字を起こす OCR はパソコンの中だけで動き、通信しません。起こした翻刻を画像と見比べて誤読を直し、現代語訳・語注・要約を付ける部分は Claude（Anthropic）が担当します。</p>
+        <p>読む画面は、左に古文書・右に読み取り（左右）と、上に古文書・下に読み取り（上下）の 2 つのレイアウトを切り替えられます。翻刻は縦書きにもでき、画像は拡大して字形を確かめられます。</p>
+      </div>
+
+      <div class="app-card-media">
+        <div class="app-shots-3">
+          <figure class="wide">
+            <img src="https://raw.githubusercontent.com/hidetako/Komonjo-Daro/main/docs/images/komonjo-01-layout-h.png" alt="Komonjo-Daro の画面。左に竹取物語の版本ページ、右に校訂済みの翻刻が行ごとに並ぶ" width="3200" height="2000" loading="lazy">
+          </figure>
+          <figure>
+            <img src="https://raw.githubusercontent.com/hidetako/Komonjo-Daro/main/docs/images/komonjo-02-gendaigo.png" alt="現代語訳タブ。翁が光る竹を見つける場面の現代語訳" width="3200" height="2000" loading="lazy">
+          </figure>
+          <figure>
+            <img src="https://raw.githubusercontent.com/hidetako/Komonjo-Daro/main/docs/images/komonjo-03-layout-v.png" alt="上下レイアウト。上に古文書、下に OCR からの修正箇所と根拠の表" width="3200" height="2000" loading="lazy">
+          </figure>
+        </div>
+        <figcaption>翻刻（左右）／現代語訳／上下レイアウトと「修正・不確実」タブ　※資料画像は国立国会図書館デジタルコレクション『竹取物語』上（<a href="https://dl.ndl.go.jp/pid/1287221/1/2" target="_blank" rel="noopener noreferrer">dl.ndl.go.jp</a>）</figcaption>
+      </div>
+
+      <p class="apps-group-label sub">できること</p>
+      <ul class="bk-list">
+        <li><strong>翻刻</strong>　jpg・png・tif・jp2・bmp の画像から、行ごとにくずし字をテキスト化。読み順も整えます。</li>
+        <li><strong>校訂</strong>　Claude が画像と翻刻を見比べ、誤読を直します。直した箇所は「行・OCR・校訂・根拠」の表で確認できます。</li>
+        <li><strong>現代語訳・注釈・要約</strong>　人名・地名・語彙・典拠の語注と、2〜3 文の要約、推定時代。</li>
+        <li><strong>不確実な箇所の明示</strong>　判読できない字は ■、推定を含む字は〔 〕。自信のない箇所は別に列挙し、確実なことのように書きません。</li>
+        <li><strong>手直しして再実行</strong>　OCR の結果を自分で直してから送り直せます。</li>
+        <li><strong>一覧・検索</strong>　読み込んだ資料をサムネイル付きで一覧。タイトル・翻刻・現代語訳・注釈を横断検索。</li>
+        <li><strong>書き出し</strong>　校訂翻刻・現代語訳・注釈をまとめて Markdown で取得。</li>
+      </ul>
+
+      <p class="apps-group-label sub">データの置き場所</p>
+      <div class="bk-intro">
+        <p>画像と結果は、既定で「ドキュメント\Komonjo-Daro」に資料ごとのフォルダとして保存されます。保存先は設定画面で変更でき、既存のデータごと移せます。ログインや会員登録はありません。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="detail-section" id="download">
+    <div class="container">
+      <p class="apps-group-label">ダウンロード（無料）</p>
+      <div class="bk-intro">
+        <p>最新版 0.2.0 を配布ページから入手できます。インストール後、右上の「設定」で Anthropic の API キーを入力すると現代語訳が使えます。OCR だけならキーは不要です。</p>
+      </div>
+      <p class="app-links">
+        <a class="btn btn-blue" href="https://github.com/hidetako/Komonjo-Daro/releases/latest/download/Komonjo-Daro-Setup.exe" target="_blank" rel="noopener noreferrer">ダウンロード（Windows）↓</a>
+        <a class="btn btn-ink" href="https://github.com/hidetako/Komonjo-Daro/releases" target="_blank" rel="noopener noreferrer">過去の版 ↗</a>
+      </p>
+      <div class="notice">
+        <p><strong>初回起動時の警告表示について</strong><br>初回起動時に「Windows によって PC が保護されました」と表示されることがあります。「詳細情報」→「実行」で続行できます。配布数が少ないソフトで出る表示で、中身はすべて公開されています。</p>
+        <p><strong>API の費用について</strong><br>現代語訳・注釈は、ご自身で取得した Anthropic の API キーで動き、その利用料はご本人に請求されます。1 ページあたりの目安は数円〜数十円（画像を同送するかどうかとページの文字量で変わります）。画像を送らない設定にすると安くなります。</p>
+        <p><strong>向いている資料・向かない資料</strong><br>OCR の学習データは版本（木版印刷）と整った写本が中心です。手書きの書状・証文・日記などの近世文書は精度が大きく落ちます。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="detail-section" id="details">
+    <div class="container">
+      <p class="apps-group-label">詳細</p>
+      <details class="fold">
+        <summary>仕組み</summary>
+        <div class="fold-body">
+          <ul class="bk-list">
+            <li><strong>OCR</strong>　国立国会図書館の <a href="https://github.com/ndl-lab/ndlkotenocr-lite" target="_blank" rel="noopener noreferrer">NDL古典籍OCR-Lite</a>（CC BY 4.0）を同梱。レイアウト認識、文字列認識、読み順整序の 3 段で、GPU なしの CPU で動きます。1 ページ数秒〜数十秒。</li>
+            <li><strong>校訂・現代語訳</strong>　Claude（既定は claude-opus-5-5。設定で変更可）に、縮小した資料画像と翻刻を渡し、決まった形式（校訂翻刻・修正一覧・現代語訳・注釈・不確実箇所・要約・推定時代）で受け取ります。</li>
+            <li><strong>画面</strong>　パソコンの中で小さな Web サーバーが動き、Edge または Chrome のアプリウィンドウで表示します。外からは接続できません。</li>
+          </ul>
+        </div>
+      </details>
+
+      <details class="fold">
+        <summary>動作要件</summary>
+        <div class="fold-body">
+          <p class="bk-note">Windows 10／11（64bit）。追加のインストールは不要です。現代語訳には Anthropic API キーとインターネット接続が必要です。NVIDIA GPU があれば OCR を速くできますが、必須ではありません。</p>
+        </div>
+      </details>
+
+      <details class="fold">
+        <summary>通信について</summary>
+        <div class="fold-body">
+          <p class="bk-note">利用状況の収集や外部へのデータ送信は行いません。通信が発生するのは次の 2 つだけです。</p>
+          <ul class="bk-list">
+            <li>現代語訳・注釈の作成：Anthropic API（翻刻テキストと、設定で有効なら縮小した資料画像を送信）</li>
+            <li>起動時の更新確認と更新：GitHub</li>
+          </ul>
+          <p class="bk-note">OCR はオフラインで完結します。API キーはパソコンの中の設定ファイルにのみ保存されます。</p>
+        </div>
+      </details>
+
+      <details class="fold">
+        <summary>アップデート</summary>
+        <div class="fold-body">
+          <p class="bk-note">起動時に新しい版を確認し、あれば画面上部に知らせます。「今すぐ更新」を押すとインストーラーを取得してサイレントに入れ替え、自動で再起動します。自動確認は設定で止められます。</p>
+        </div>
+      </details>
+
+      <details class="fold">
+        <summary>出典・ライセンス</summary>
+        <div class="fold-body">
+          <ul class="bk-list">
+            <li>OCR エンジン：NDL古典籍OCR-Lite（国立国会図書館, <a href="https://creativecommons.org/licenses/by/4.0/deed.ja" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>）</li>
+            <li>アプリ本体：MIT ライセンス。ソースは <a href="https://github.com/hidetako/Komonjo-Daro" target="_blank" rel="noopener noreferrer">GitHub</a> で公開。</li>
+            <li>画面例の資料画像：国立国会図書館デジタルコレクション『竹取物語』上（<a href="https://dl.ndl.go.jp/pid/1287221/1/2" target="_blank" rel="noopener noreferrer">dl.ndl.go.jp/pid/1287221/1/2</a>）</li>
+          </ul>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <section class="detail-section">
+    <div class="container narrow">
+      <p class="apps-group-label">よくある質問</p>
+      <dl class="faq">
+        <dt>料金はかかりますか？</dt>
+        <dd>アプリ本体は無料です。現代語訳・注釈に使う Claude の API 利用料は、ご自身の Anthropic アカウントに請求されます。OCR だけなら費用も通信も発生しません。</dd>
+        <dt>翻刻は正確ですか？</dt>
+        <dd>版本では高い精度が出ますが、誤読はあります。Claude が画像と見比べて直した箇所は根拠つきで一覧になり、自信のない箇所は「不確実」として別に示します。最終的な判断は原本の画像で確かめてください。</dd>
+        <dt>手書きの古文書も読めますか？</dt>
+        <dd>書状・証文・日記のような手書き文書は、OCR の学習データに少ないため精度が落ちます。版本・整った写本向けとお考えください。</dd>
+        <dt>画像は外部に送られますか？</dt>
+        <dd>OCR はパソコンの中で完結します。現代語訳を作るときだけ、設定で有効なら縮小した画像と翻刻を Anthropic API に送ります。画像を送らない設定にもできます。</dd>
+        <dt>データはどこに保存されますか？</dt>
+        <dd>既定で「ドキュメント\Komonjo-Daro」。設定画面で別のフォルダに変更でき、既存データも一緒に移せます。</dd>
+      </dl>
+    </div>
+  </section>
+
+  <section class="detail-section">
+    <div class="container narrow">
+      <p class="detail-note">本ソフトウェアは MIT ライセンスのもとで無償提供されており、無保証です。翻刻・現代語訳・注釈は機械による推定を含み、学術的な引用には原本での確認が必要です。利用により生じた損害について責任を負いません。</p>
+    </div>
+  </section>
+
+  <div class="apps-back"><a href="/apps/">← プロダクト一覧に戻る</a></div>
+</main>
+
+<footer class="footer">
+  <div class="container">
+    <img class="footer-logo" src="/assets/brush/yorozu.png" alt="よろづソリューションズ" width="410" height="106">
+    <nav aria-label="フッター">
+      <ul class="footer-links">
+        <li><a href="/">ホーム</a></li>
+        <li><a href="/apps/">プロダクト一覧</a></li>
+        <li><a href="https://stresscheck.yorozusolutions.com" target="_blank" rel="noopener noreferrer">ストレスみまもり</a></li>
+        <li><a href="https://the-un-do.vercel.app/" target="_blank" rel="noopener noreferrer">一息（坐雲堂）</a></li>
+        <li><a href="/about/">運営者情報</a></li>
+      </ul>
+    </nav>
+    <p class="copyright">&copy; 2026 Yorozu Solutions</p>
+  </div>
+</footer>
+
+<a class="back-to-top" href="#top" aria-label="ページ上部に戻る">⇑</a>
+
+</body>
+</html>
