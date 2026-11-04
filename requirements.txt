@@ -1,0 +1,19 @@
+# --- NDL古典籍OCR-Lite の実行に必要（vendor/ndlkotenocr-lite/requirements.txt から GUI用 flet を除いたもの）
+onnxruntime==1.23.2
+# GPU(GTX 1650等)で動かす場合は上の行を消して次を使う: pip install onnxruntime-gpu
+pillow>=10
+numpy>=1.26
+lxml
+networkx
+ordered-set
+pyparsing
+PyYAML
+tqdm
+reportlab
+pypdfium2
+dill
+protobuf
+# --- kobun-reader 本体
+flask>=3.0
+anthropic>=0.80
+python-dotenv

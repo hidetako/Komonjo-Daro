@@ -1,0 +1,17 @@
+services:
+  kobun:
+    build: .
+    ports:
+      - "127.0.0.1:5000:5000"
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+    # GPU(NVIDIA Container Toolkit 導入済み)で使う場合は以下を有効化し、
+    # Dockerfile の onnxruntime を onnxruntime-gpu に替える
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]

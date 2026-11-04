@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}{{ job.original_name }} - kobun-reader{% endblock %}
+{% block body %}
+<h2>{{ job.original_name }}</h2>
+<div class="grid">
+  <div>
+    <img class="page" src="{{ url_for('uploads', name=job.image) }}" alt="資料画像">
+    <p class="sub">{{ job.ocr.lines|length }} 行を認識（{{ job.ocr.width }}×{{ job.ocr.height }}px）</p>
+  </div>
+  <div>
+    <form method="post" action="{{ url_for('annotate_job', job_id=job_id) }}">
+      <h3>翻刻（OCR結果。必要なら手で直してから送信）</h3>
+      <textarea name="honkoku">{{ job.edited_honkoku or job.ocr.text }}</textarea>
+      <p><input type="text" name="context" value="{{ job.context }}" placeholder="補足（任意）"></p>
+      <p><label><input type="checkbox" name="use_image" checked> 画像も Claude に送って校訂させる（精度↑・費用↑）</label></p>
+      <p><button type="submit">現代語訳・注釈を作成</button> <span class="sub">数十秒かかります</span></p>
+    </form>
+  </div>
+</div>
+
+{% if job.annotation %}
+{% set a = job.annotation %}
+<div class="card">
+  <h3>翻刻（校訂済）
+    <button type="button" class="secondary" style="font-size:12px;padding:4px 8px" onclick="document.getElementById('hk').classList.toggle('vertical')">縦横切替</button>
+  </h3>
+  <pre id="hk" class="honkoku">{{ a.honkoku }}</pre>
+</div>
+<div class="grid">
+  <div class="card"><h3>現代語訳</h3><pre class="honkoku" style="font-size:15px">{{ a.gendaigo }}</pre></div>
+  <div class="card"><h3>注釈</h3>
+    <dl>{% for n in a.annotations %}<dt>{{ n.term }}</dt><dd>{{ n.note }}</dd>{% endfor %}</dl>
+  </div>
+</div>
+<div class="grid">
+  <div class="card"><h3>OCRからの修正</h3>
+    <ul>{% for c in a.corrections %}<li>{{ c.line }}行目: 「{{ c.ocr }}」→「{{ c.fixed }}」<span class="sub">（{{ c.reason }}）</span></li>{% else %}<li class="sub">なし</li>{% endfor %}</ul>
+  </div>
+  <div class="card"><h3>不確実な箇所</h3>
+    <ul>{% for u in a.uncertain %}<li>{{ u }}</li>{% else %}<li class="sub">なし</li>{% endfor %}</ul>
+  </div>
+</div>
+<div class="card">
+  <h3>要約</h3><p>{{ a.summary }}</p>
+  <p class="sub">推定時代: {{ a.era_guess }}　model: {{ a.model }}　tokens in/out: {{ a.input_tokens }}/{{ a.output_tokens }}
+  　<a href="{{ url_for('markdown', job_id=job_id) }}">Markdown で取得</a></p>
+</div>
+{% endif %}
+{% endblock %}

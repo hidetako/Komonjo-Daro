@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}kobun-reader{% endblock %}</title>
+<style>
+  :root { --bg:#faf7f0; --ink:#222; --sub:#666; --line:#d8d2c4; --accent:#7a1f1f; }
+  body { margin:0; font-family: "Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif; background:var(--bg); color:var(--ink); }
+  header { padding:12px 20px; border-bottom:1px solid var(--line); display:flex; gap:16px; align-items:baseline; }
+  header a { color:var(--accent); text-decoration:none; font-weight:bold; }
+  main { max-width:1200px; margin:0 auto; padding:20px; }
+  .grid { display:grid; grid-template-columns: 1fr 1fr; gap:24px; }
+  @media (max-width:900px){ .grid{ grid-template-columns:1fr; } }
+  img.page { max-width:100%; border:1px solid var(--line); background:#fff; }
+  textarea { width:100%; min-height:360px; font-family:inherit; font-size:16px; line-height:1.9; padding:10px; border:1px solid var(--line); background:#fff; box-sizing:border-box; }
+  input[type=text] { width:100%; padding:8px; border:1px solid var(--line); box-sizing:border-box; font-family:inherit; }
+  button { background:var(--accent); color:#fff; border:0; padding:10px 18px; font-size:15px; cursor:pointer; border-radius:3px; }
+  button.secondary { background:#555; }
+  .card { background:#fff; border:1px solid var(--line); padding:16px 20px; margin-bottom:16px; }
+  .sub { color:var(--sub); font-size:13px; }
+  pre.honkoku { white-space:pre-wrap; font-family:inherit; font-size:17px; line-height:2; margin:0; }
+  pre.honkoku.vertical { writing-mode: vertical-rl; height:520px; overflow-x:auto; }
+  dl dt { font-weight:bold; margin-top:8px; } dl dd { margin-left:1em; color:#333; }
+  ul.jobs li { margin:4px 0; }
+  .err { background:#fff3f3; border:1px solid #e0b4b4; padding:14px; white-space:pre-wrap; }
+</style>
+</head>
+<body>
+<header><a href="{{ url_for('index') }}">kobun-reader</a><span class="sub">古典籍 翻刻・現代語訳</span></header>
+<main>{% block body %}{% endblock %}</main>
+</body>
+</html>
