@@ -8,7 +8,7 @@
   :root { --bg:#f6f2e8; --panel:#fffdf8; --ink:#222; --sub:#6b6560; --line:#d9d2c2; --accent:#7a1f1f; --accent-soft:#f3e4e4; }
   * { box-sizing:border-box; }
   html, body { margin:0; height:100%; }
-  body { font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif; background:var(--bg); color:var(--ink); display:flex; flex-direction:column; }
+  body { font-family:"Hiragino Mincho ProN","Yu Mincho","YuMincho","Noto Serif JP","Noto Serif CJK JP","IPAexMincho",serif; background:var(--bg); color:var(--ink); display:flex; flex-direction:column; }
   header { padding:8px 16px; border-bottom:1px solid var(--line); background:var(--panel); display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
   header a.brand { color:var(--accent); text-decoration:none; font-weight:bold; font-size:18px; }
   header .spacer { flex:1; }
@@ -53,6 +53,7 @@
   .workspace.layout-v .read-panel { --vh: 56vh; }
   .read-panel.vertical .vtext { writing-mode:vertical-rl; text-orientation:mixed; height:var(--vh); max-height:var(--vh); overflow-x:auto; overflow-y:hidden; padding-left:8px; }
   .read-panel.vertical pre.vtext { white-space:pre-wrap; }
+  .read-panel.vertical pre.jibo { white-space:pre; overflow-y:auto; }   /* 原典の1行＝1列。長い列は縦スクロール */
   .read-panel.vertical .vtext ul, .read-panel.vertical .vtext ol { padding-inline-start:1.2em; margin:0; }
   .read-panel.vertical .tab-note { writing-mode:horizontal-tb; }
   .read-panel:not(.vertical) .vtext { max-height:var(--vh); overflow-y:auto; }
