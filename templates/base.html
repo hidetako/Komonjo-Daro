@@ -54,6 +54,8 @@
   .read-panel.vertical .vtext { writing-mode:vertical-rl; text-orientation:mixed; height:var(--vh); max-height:var(--vh); overflow-x:auto; overflow-y:hidden; padding-left:8px; }
   .read-panel.vertical pre.vtext { white-space:pre-wrap; }
   .read-panel.vertical pre.jibo { white-space:pre; overflow-y:auto; }   /* 原典の1行＝1列。長い列は縦スクロール */
+  .read-panel.vertical .vtext.half { height:calc(var(--vh) / 2 - 28px); max-height:calc(var(--vh) / 2 - 28px); }
+  .read-panel:not(.vertical) .vtext.half { max-height:calc(var(--vh) / 2 - 28px); }
   .read-panel.vertical .vtext ul, .read-panel.vertical .vtext ol { padding-inline-start:1.2em; margin:0; }
   .read-panel.vertical .tab-note { writing-mode:horizontal-tb; }
   .read-panel:not(.vertical) .vtext { max-height:var(--vh); overflow-y:auto; }

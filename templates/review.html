@@ -66,7 +66,13 @@
 
     {% if a %}
     <div class="tab" id="tab-gendaigo">
-      <pre class="text vtext" style="font-size:16px">{{ a.gendaigo }}</pre>
+      <pre class="text vtext half" style="font-size:16px">{{ a.gendaigo }}</pre>
+      {% if a.jibo %}
+      <p class="sub tab-note" style="margin:10px 0 6px; border-top:1px solid var(--line); padding-top:8px">字母付き翻刻　各かなの元になった漢字（万葉仮名・変体仮名の字母）。全体は「字母」タブ</p>
+      <pre class="text jibo vtext half">{{ a.jibo|replace('(', '（')|replace(')', '）')|replace('?', '？') }}</pre>
+      {% else %}
+      <p class="sub tab-note" style="margin-top:12px">字母付き翻刻は v0.5.0 以降の結果に付きます。「再実行」タブから作り直すと、ここと「字母」タブに表示されます。</p>
+      {% endif %}
     </div>
     <div class="tab" id="tab-jibo">
       {% if a.jibo %}
