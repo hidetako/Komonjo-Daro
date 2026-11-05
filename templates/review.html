@@ -71,15 +71,19 @@
       <p class="sub tab-note" style="margin:10px 0 6px; border-top:1px solid var(--line); padding-top:8px">字母付き翻刻　各かなの元になった漢字（万葉仮名・変体仮名の字母）。全体は「字母」タブ</p>
       <pre class="text jibo vtext half">{{ a.jibo|replace('(', '（')|replace(')', '）')|replace('?', '？') }}</pre>
       {% else %}
-      <p class="sub tab-note" style="margin-top:12px">字母付き翻刻は v0.5.0 以降の結果に付きます。「再実行」タブから作り直すと、ここと「字母」タブに表示されます。</p>
+      <p class="sub tab-note" style="margin-top:12px">まだ字母が付いていません。「字母」タブの「字母を判定し直す」で付けられます。</p>
       {% endif %}
     </div>
     <div class="tab" id="tab-jibo">
+      <div class="toolbar tab-note" style="margin-bottom:8px">
+        <span class="sub">各かなの元になった漢字（万葉仮名・変体仮名の字母）。行ごとの切り出し画像から候補表の中で判定。？は判定に自信がない箇所{% if a.jibo_tokens %}　tokens {{ a.jibo_tokens }}{% endif %}</span>
+        <span style="flex:1"></span>
+        <form method="post" action="{{ url_for('jibo_job', job_id=job_id) }}" data-busy="行を切り出して字母を判定しています（行数により数十秒〜）…"><button type="submit" class="secondary">字母を判定し直す</button></form>
+      </div>
       {% if a.jibo %}
-      <p class="sub tab-note" style="margin:0 0 8px">各かなの元になった漢字（万葉仮名・変体仮名の字母）を「字母（かな）」で示す。？は字母の判定に自信がない箇所</p>
       <pre id="jibo" class="text jibo vtext">{{ a.jibo|replace('(', '（')|replace(')', '）')|replace('?', '？') }}</pre>
       {% else %}
-      <p class="sub">字母付き翻刻は v0.5.0 以降の結果に付きます。「再実行」タブから作り直すと表示されます。</p>
+      <p class="sub">まだ字母が付いていません。「字母を判定し直す」で行切り出しの判定を実行します（設定で自動実行をオンにすると現代語訳のあとに自動で付きます）。</p>
       {% endif %}
     </div>
     <div class="tab" id="tab-notes">

@@ -60,8 +60,9 @@ def start_ocr(store: Store, job_ids: list[str], group: str, device: str) -> None
 
 
 def start_annotate(store: Store, job_ids: list[str], group: str, send_image: bool,
-                   use_glossary: bool = True, carry_context: bool = True) -> None:
+                   use_glossary: bool = True, carry_context: bool = True, cfg: dict | None = None) -> None:
     from .annotate import annotate
+    from . import jibo as _jibo
 
     def work():
         p = _progress[group]
@@ -79,6 +80,11 @@ def start_annotate(store: Store, job_ids: list[str], group: str, send_image: boo
                 job = store.load(jid)
                 job["annotation"] = ann.to_dict()
                 store.save(jid, job)
+                if cfg and cfg.get("jibo_pass", True):
+                    try:
+                        _jibo.apply_to_job(store, jid, cfg)
+                    except Exception as e:  # noqa: BLE001
+                        p.errors.append(f"{p.current}: 字母判定に失敗（本文は保存済み）: {e}")
             except Exception as e:  # noqa: BLE001
                 p.errors.append(f"{p.current}: {e}")
             p.done += 1

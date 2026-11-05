@@ -17,6 +17,7 @@ from flask import Flask, abort, flash, jsonify, redirect, render_template, reque
 
 from kobun import __version__
 from kobun import config as config_mod
+from kobun import jibo as jibo_mod
 from kobun import llm, pdf, worker
 from kobun.ocr_ndl import NdlLiteNotFound, run_ocr
 from kobun.store import Store
@@ -126,7 +127,7 @@ def doc_annotate(group):
     try:
         c = cfg()
         worker.start_annotate(st, [j["id"] for j in pages], group, request.form.get("use_image") == "on",
-                              use_glossary=c["use_glossary"], carry_context=c["carry_context"])
+                              use_glossary=c["use_glossary"], carry_context=c["carry_context"], cfg=c)
     except RuntimeError as e:
         flash(str(e))
     return redirect(url_for("doc", group=group))
@@ -243,6 +244,29 @@ def annotate_job(job_id):
     job["context"] = context
     job["annotation"] = ann.to_dict()
     st.save(job_id, job)
+    if c.get("jibo_pass", True):
+        try:
+            jibo_mod.apply_to_job(st, job_id, c)
+        except Exception as e:  # noqa: BLE001
+            flash(f"本文は保存しましたが、字母の判定に失敗しました: {e}")
+    return redirect(url_for("review", job_id=job_id))
+
+
+@app.post("/job/<job_id>/jibo")
+def jibo_job(job_id):
+    """字母の第2パス（行切り出し）だけを実行し直す。"""
+    st = store()
+    try:
+        job = st.load(job_id)
+    except KeyError:
+        abort(404)
+    if not job.get("annotation"):
+        flash("先に現代語訳を作成してください")
+        return redirect(url_for("review", job_id=job_id))
+    try:
+        jibo_mod.apply_to_job(st, job_id, cfg())
+    except Exception as e:  # noqa: BLE001
+        return render_template("error.html", message=f"字母の判定に失敗しました: {e}"), 500
     return redirect(url_for("review", job_id=job_id))
 
 
@@ -339,6 +363,7 @@ def settings_save():
     c["send_image"] = request.form.get("send_image") == "on"
     c["use_glossary"] = request.form.get("use_glossary") == "on"
     c["carry_context"] = request.form.get("carry_context") == "on"
+    c["jibo_pass"] = request.form.get("jibo_pass") == "on"
     c["auto_check_updates"] = request.form.get("auto_check_updates") == "on"
     new_dir = request.form.get("data_dir", "").strip() or old_dir
     moved = 0

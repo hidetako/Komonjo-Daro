@@ -18,6 +18,8 @@
       <label><input type="checkbox" name="use_glossary" {{ 'checked' if c.use_glossary }}> <a href="{{ url_for('glossary') }}">用語集</a>を毎回 AI に渡す（表記・読みを揃える）</label><br>
       <label><input type="checkbox" name="carry_context" {{ 'checked' if c.carry_context }}> 同じ文書の前ページ（直近3ページの翻刻と注釈語）を参考に渡す</label>
     </div>
+    <label class="k">字母の判定</label>
+    <label><input type="checkbox" name="jibo_pass" {{ 'checked' if c.jibo_pass }}> 現代語訳のあとに、行ごとの切り出し画像で字母を自動判定する（行数分の小画像を送るため費用が少し増える）</label>
   </div>
   <p class="sub">OpenAI では、各モデルが受け付ける範囲に丸めます（GPT-6 系は max まで、GPT-5.5／5.4 系は xhigh まで、それ以前は high まで）。推論に対応しないモデルでは無視されます。</p>
 </div>

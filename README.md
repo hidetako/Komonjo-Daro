@@ -43,8 +43,8 @@ Komonjo-Daro/
 
 ```bash
 # kobun/__init__.py の __version__ を上げてコミットしてから
-git tag v0.6.0
-git push origin v0.6.0
+git tag v0.7.0
+git push origin v0.7.0
 ```
 GitHub Actions（`.github/workflows/release.yml`）が Windows でビルドし、Release に `Komonjo-Daro-Setup.exe` を添付する。
 タグとソースのバージョンが違うとビルドは失敗する。ローカルで作るなら `packaging\build.ps1`（Inno Setup 6 が必要）。
@@ -142,9 +142,10 @@ python -m kobun.pipeline 資料.pdf --pages 1-5 --no-llm       # PDF はペー�
 - プロバイダは Anthropic（既定 `claude-opus-5-5`）と OpenAI（既定 `gpt-6.1-sol`）。`kobun/llm.py` が両者を同じ呼び出しに揃える。思考の深さは共通の low〜max で、OpenAI は各モデルが受け付ける範囲（GPT-6 系は max まで、GPT-5.5 系は xhigh まで）に丸める。
 - モデル一覧は設定画面の「一覧を取得」で各社 API から取る。候補リスト（`CURATED`）は取得できないときの既定。
 - 出力は JSON スキーマで固定（`kobun/annotate.py` の `OUTPUT_SCHEMA`）。
-  `honkoku`（校訂翻刻）/ `jibo`（字母付き翻刻。各かなの元の漢字を「字母(かな)」で）/ `corrections`（OCRからの修正と根拠）/ `gendaigo` / `annotations` / `uncertain`（不確実な箇所）/ `summary` / `era_guess`
+  `honkoku`（校訂翻刻）/ `corrections`（OCRからの修正と根拠）/ `gendaigo` / `annotations` / `uncertain`（不確実な箇所）/ `summary` / `era_guess`
 - 画像を同送すると、OCR誤認識を画像で確認して直してくれる。費用を抑えたいときは画面のチェックを外す。OpenAI は Responses API の構造化出力（strict）、Anthropic は output_config の JSON スキーマで、同じスキーマを使う。
 - 判読できない字は「■」、推定は〔 〕で囲むようシステムプロンプトで指示。不確実なものは `uncertain` に必ず列挙させる。
+- **字母（変体仮名のもとの漢字）は第2パス**（`kobun/jibo.py`）。NDL-Lite の行座標で原寸画像から行を切り出し、数行ずつ候補表つきで AI に判定させる。全体画像では字形が潰れて誤りが増えるため。設定で自動実行を切替、字母タブから手動実行も可。
 
 ## 精度についての注意
 

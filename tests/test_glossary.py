@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from kobun.annotate import build_user_text
 from kobun.store import Store
 
-SAMPLE = {"honkoku": "x", "jibo": "x", "corrections": [], "gendaigo": "y", "annotations": [], "uncertain": [], "summary": "s", "era_guess": "e"}
+SAMPLE = {"honkoku": "x", "corrections": [], "gendaigo": "y", "annotations": [], "uncertain": [], "summary": "s", "era_guess": "e"}
 
 
 def test_glossary_crud_and_import(tmp_path):

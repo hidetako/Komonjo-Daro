@@ -102,21 +102,33 @@ def test_key(provider: str, api_key: str) -> tuple[bool, str]:
 def call(provider: str, model: str, effort: str, api_key: str, system: str, text: str,
          image: tuple[str, str] | None, schema: dict, client=None) -> LlmResult:
     """image は (base64, media_type)。schema に従う JSON 文字列を返す。"""
+    parts: list[tuple] = []
+    if image:
+        parts.append(("image", image))
+    parts.append(("text", text))
+    return call_parts(provider, model, effort, api_key, system, parts, schema, client)
+
+
+def call_parts(provider: str, model: str, effort: str, api_key: str, system: str, parts: list[tuple],
+               schema: dict, client=None) -> LlmResult:
+    """parts は ("text", str) と ("image", (base64, media_type)) の列。順序どおりに渡す。"""
     if provider == "anthropic":
-        return _call_anthropic(model, effort, api_key, system, text, image, schema, client)
+        return _call_anthropic(model, effort, api_key, system, parts, schema, client)
     if provider == "openai":
-        return _call_openai(model, effort, api_key, system, text, image, schema, client)
+        return _call_openai(model, effort, api_key, system, parts, schema, client)
     raise ValueError(f"未対応のプロバイダ: {provider}")
 
 
-def _call_anthropic(model, effort, api_key, system, text, image, schema, client=None) -> LlmResult:
+def _call_anthropic(model, effort, api_key, system, parts, schema, client=None) -> LlmResult:
     import anthropic
 
     client = client or (anthropic.Anthropic(api_key=api_key) if api_key else anthropic.Anthropic())
     content = []
-    if image:
-        content.append({"type": "image", "source": {"type": "base64", "media_type": image[1], "data": image[0]}})
-    content.append({"type": "text", "text": text})
+    for kind, v in parts:
+        if kind == "image":
+            content.append({"type": "image", "source": {"type": "base64", "media_type": v[1], "data": v[0]}})
+        else:
+            content.append({"type": "text", "text": v})
     with client.messages.stream(
         model=model,
         max_tokens=32000,
@@ -134,14 +146,16 @@ def _call_anthropic(model, effort, api_key, system, text, image, schema, client=
     return LlmResult(out, r.model, r.usage.input_tokens, r.usage.output_tokens)
 
 
-def _call_openai(model, effort, api_key, system, text, image, schema, client=None) -> LlmResult:
+def _call_openai(model, effort, api_key, system, parts, schema, client=None) -> LlmResult:
     import openai
 
     client = client or openai.OpenAI(api_key=api_key)
     content = []
-    if image:
-        content.append({"type": "input_image", "image_url": f"data:{image[1]};base64,{image[0]}", "detail": "high"})
-    content.append({"type": "input_text", "text": text})
+    for kind, v in parts:
+        if kind == "image":
+            content.append({"type": "input_image", "image_url": f"data:{v[1]};base64,{v[0]}", "detail": "high"})
+        else:
+            content.append({"type": "input_text", "text": v})
     kwargs = dict(
         model=model,
         instructions=system,
