@@ -3,12 +3,26 @@
 <div class="card">
   <h2 style="margin-top:0">画像を読み込む</h2>
   {% if not has_key %}<p class="ng">{{ provider_label }} の API キーが未設定です。OCR は動きますが、現代語訳には <a href="{{ url_for('settings') }}">設定</a> でキーを入力してください。</p>{% else %}<p class="sub">現代語訳: {{ provider_label }} / {{ model }}（<a href="{{ url_for('settings') }}">変更</a>）</p>{% endif %}
-  <form method="post" action="{{ url_for('ocr') }}" enctype="multipart/form-data" data-busy="OCR を実行しています（CPUで数秒〜数十秒。初回はモデル読み込みで少し長め）…">
-    <p><input type="file" name="image" accept=".jpg,.jpeg,.png,.tif,.tiff,.jp2,.bmp,.pdf" required></p>
+  <form method="post" action="{{ url_for('ocr') }}" enctype="multipart/form-data" id="ocr-form" data-busy="OCR を実行しています（CPUで数秒〜数十秒。初回はモデル読み込みで少し長め）…">
+    <div id="drop" class="drop" tabindex="0">
+      <div id="drop-empty">
+        <p style="margin:0 0 6px; font-size:16px">ここに画像・PDF をドラッグ＆ドロップ、または <strong>Ctrl+V</strong> で貼り付け</p>
+        <p class="sub" style="margin:0">PrintScreen や Win+Shift+S で切り取った画面は、そのまま Ctrl+V で読み込めます</p>
+        <p style="margin:10px 0 0; display:flex; gap:8px; justify-content:center; flex-wrap:wrap">
+          <button type="button" class="secondary" id="pick">ファイルを選ぶ…</button>
+          <button type="button" class="secondary" id="paste-btn">クリップボードから貼り付け</button>
+        </p>
+      </div>
+      <div id="drop-preview" style="display:none">
+        <img id="preview-img" alt="" style="max-height:220px; max-width:100%; border:1px solid var(--line); background:#fff">
+        <p class="sub" style="margin:6px 0 0"><span id="preview-name"></span>　<a href="#" id="clear">取り消す</a></p>
+      </div>
+      <input type="file" name="image" id="file" accept=".jpg,.jpeg,.png,.tif,.tiff,.jp2,.bmp,.pdf,image/*,application/pdf" required style="position:absolute; width:1px; height:1px; opacity:0">
+    </div>
+    <p><input type="text" name="title" id="title" placeholder="タイトル（例: 竹取物語 上 2丁表）未入力ならファイル名"></p>
     <p><input type="text" name="pages" placeholder="PDF のページ範囲（例: 1-5, 8, 12-）空欄なら全ページ。PDF は 1 ページ 1 件として登録し、OCR は順に裏で実行"></p>
-    <p><input type="text" name="title" placeholder="タイトル（例: 竹取物語 上 2丁表）未入力ならファイル名"></p>
-    <p><input type="text" name="context" placeholder="補足（資料名・刊年・所蔵など。Claude に渡す。任意）"></p>
-    <p><button type="submit">OCR を実行</button> <span class="sub">device: {{ device }}</span></p>
+    <p><input type="text" name="context" placeholder="補足（資料名・刊年・所蔵など。AI に渡す。任意）"></p>
+    <p><button type="submit" id="submit" disabled>OCR を実行</button> <span class="sub">device: {{ device }}</span></p>
   </form>
 </div>
 {% if recent %}
@@ -24,4 +38,40 @@
   </div>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const drop = document.getElementById('drop'), file = document.getElementById('file'), submit = document.getElementById('submit');
+  const empty = document.getElementById('drop-empty'), prev = document.getElementById('drop-preview'), pimg = document.getElementById('preview-img'), pname = document.getElementById('preview-name');
+  function stamp(){ const d = new Date(), z = n => String(n).padStart(2,'0'); return `${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`; }
+  function setFile(f){
+    if (!f) return;
+    if (!f.name || f.name === 'image.png' || f.name === 'blob') f = new File([f], `clip-${stamp()}.${(f.type.split('/')[1] || 'png').replace('jpeg','jpg')}`, {type: f.type});
+    const dt = new DataTransfer(); dt.items.add(f); file.files = dt.files;
+    pname.textContent = f.name + '（' + Math.round(f.size/1024) + ' KB）';
+    if (f.type.startsWith('image/')) { pimg.src = URL.createObjectURL(f); pimg.style.display = ''; } else { pimg.style.display = 'none'; }
+    empty.style.display = 'none'; prev.style.display = ''; submit.disabled = false;
+    const t = document.getElementById('title'); if (!t.value && !f.name.startsWith('clip-')) t.placeholder = f.name.replace(/\.[^.]+$/, '');
+  }
+  document.getElementById('pick').addEventListener('click', () => file.click());
+  file.addEventListener('change', () => setFile(file.files[0]));
+  document.getElementById('clear').addEventListener('click', e => { e.preventDefault(); file.value = ''; empty.style.display = ''; prev.style.display = 'none'; submit.disabled = true; });
+  // Ctrl+V（PrintScreen / Win+Shift+S の画像）
+  document.addEventListener('paste', e => {
+    const items = e.clipboardData && e.clipboardData.items; if (!items) return;
+    for (const it of items) { if (it.kind === 'file') { const f = it.getAsFile(); if (f) { e.preventDefault(); setFile(f); return; } } }
+  });
+  document.getElementById('paste-btn').addEventListener('click', async () => {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const it of items) { const type = it.types.find(t => t.startsWith('image/')); if (type) { setFile(new File([await it.getType(type)], 'image.png', {type})); return; } }
+      alert('クリップボードに画像がありません。PrintScreen か Win+Shift+S で画面を切り取ってから押してください。');
+    } catch (err) { alert('この環境ではボタンからの読み取りができません。画面上で Ctrl+V を押してください。'); }
+  });
+  // ドラッグ＆ドロップ
+  ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => { const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) setFile(f); });
+</script>
 {% endblock %}

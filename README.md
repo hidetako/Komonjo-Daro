@@ -43,8 +43,8 @@ Komonjo-Daro/
 
 ```bash
 # kobun/__init__.py の __version__ を上げてコミットしてから
-git tag v0.4.0
-git push origin v0.4.0
+git tag v0.4.1
+git push origin v0.4.1
 ```
 GitHub Actions（`.github/workflows/release.yml`）が Windows でビルドし、Release に `Komonjo-Daro-Setup.exe` を添付する。
 タグとソースのバージョンが違うとビルドは失敗する。ローカルで作るなら `packaging\build.ps1`（Inno Setup 6 が必要）。
@@ -115,7 +115,7 @@ Dockerfile 内で NDL-Lite を clone するので vendor の手動取得は不�
 
 ## Web 画面の使い方
 
-- **読み込む**: 画像または PDF をアップロードしてOCR。PDF は 1 ページ 1 件として登録され、OCR は裏で順に実行（ページ範囲 `1-5, 8, 12-` の指定可）。文書ページで進み具合を見ながら、未訳ページの一括現代語訳と全ページの Markdown 取得ができる。
+- **読み込む**: 画像または PDF をドラッグ＆ドロップ、ファイル選択、または Ctrl+V の貼り付け（PrintScreen / Win+Shift+S で切り取った画面をそのまま）でOCR。PDF は 1 ページ 1 件として登録され、OCR は裏で順に実行（ページ範囲 `1-5, 8, 12-` の指定可）。文書ページで進み具合を見ながら、未訳ページの一括現代語訳と全ページの Markdown 取得ができる。
 - **一覧・検索**: 過去の資料をサムネイル付きで一覧。タイトル・翻刻・現代語訳・注釈を横断検索（空白区切りでAND）。
 - **設定**: APIキー、モデル、思考の深さ、保存フォルダ（「参照…」でフォルダ選択）、OCRデバイス、更新確認。
 
