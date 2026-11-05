@@ -3,6 +3,8 @@ name: Build Windows installer
 on:
   push:
     tags: ["v*"]
+    branches: ["main"]        # main への push でもビルドだけ行う（Release への添付はタグのときだけ）
+    paths-ignore: ["docs/**", "README.md", "LICENSE"]
   workflow_dispatch:
 
 permissions:
