@@ -28,7 +28,7 @@
       <form method="post" action="{{ url_for('set_title', job_id=job_id) }}" style="display:flex; gap:6px; flex:1; min-width:200px">
         <input type="text" name="title" value="{{ job.title }}" title="タイトル（Enterで保存）" style="font-weight:bold">
       </form>
-      <label class="sub">拡大 <input type="range" id="zoom" min="100" max="400" value="100" step="10"></label>
+      <label class="sub">拡大 <input type="range" id="zoom" min="50" max="200" value="100" step="10"></label>
       <span class="sub" id="zoom-val">100%</span>
       <a class="sub" href="{{ url_for('media', job_id=job_id, name=job.original) }}" target="_blank">原寸で開く</a>
     </div>
@@ -151,7 +151,7 @@
   zoom.addEventListener('input', applyZoom);
   viewer.addEventListener('wheel', e => {
     if (!e.ctrlKey) return; e.preventDefault();
-    zoom.value = Math.min(400, Math.max(100, +zoom.value + (e.deltaY < 0 ? 10 : -10))); applyZoom();
+    zoom.value = Math.min(200, Math.max(50, +zoom.value + (e.deltaY < 0 ? 10 : -10))); applyZoom();
   }, {passive:false});
 
   // 縦書き／横書き（既定は縦。原典に合わせる）
