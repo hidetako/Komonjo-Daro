@@ -66,7 +66,7 @@ cd C:\dev\Komonjo-Daro
 git clone https://github.com/ndl-lab/ndlkotenocr-lite vendor\ndlkotenocr-lite
 ```
 ```powershell
-py -3.12 -m venv venv
+py -3 -m venv venv
 ```
 ```powershell
 .\venv\Scripts\Activate.ps1
