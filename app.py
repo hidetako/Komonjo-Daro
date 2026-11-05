@@ -17,7 +17,7 @@ from flask import Flask, abort, flash, jsonify, redirect, render_template, reque
 
 from kobun import __version__
 from kobun import config as config_mod
-from kobun import llm
+from kobun import llm, pdf, worker
 from kobun.ocr_ndl import NdlLiteNotFound, run_ocr
 from kobun.store import Store
 from kobun.updater import UpdateState, download_and_install, exit_app
@@ -62,6 +62,8 @@ def ocr():
     tmp = Path(tempfile.gettempdir()) / f"komonjo_{uuid.uuid4().hex}{Path(file.filename).suffix.lower() or '.jpg'}"
     file.save(tmp)
     st = store()
+    if tmp.suffix == ".pdf":
+        return ocr_pdf(tmp, file.filename, st, c)
     try:
         job_id = st.create(tmp, file.filename, title=request.form.get("title", ""), context=request.form.get("context", ""))
         job = st.load(job_id)
@@ -75,6 +77,102 @@ def ocr():
     job["ocr"] = result.to_dict()
     st.save(job_id, job)
     return redirect(url_for("review", job_id=job_id))
+
+
+def ocr_pdf(tmp: Path, filename: str, st: Store, c: dict):
+    """PDF をページ画像に展開して 1 ページ 1 件で登録し、OCR を裏で順に走らせる。"""
+    title = request.form.get("title", "").strip() or Path(filename).stem
+    context = request.form.get("context", "")
+    try:
+        total = pdf.page_count(tmp)
+        pages = pdf.parse_page_range(request.form.get("pages", ""), total)
+        if len(pages) > pdf.MAX_PAGES:
+            raise ValueError(f"一度に扱えるのは {pdf.MAX_PAGES} ページまでです（{len(pages)} ページ指定）")
+        group = uuid.uuid4().hex[:12]
+        job_ids = []
+        for p, im in pdf.render_pages(tmp, pages):
+            job_ids.append(st.create_from_image(im, f"{title} p.{p}", group, p, total, filename, context))
+    except Exception as e:  # noqa: BLE001
+        return render_template("error.html", message=f"PDF を読み込めませんでした: {e}"), 500
+    finally:
+        tmp.unlink(missing_ok=True)
+    try:
+        worker.start_ocr(st, job_ids, group, c["device"])
+    except Exception as e:  # noqa: BLE001
+        return render_template("error.html", message=str(e)), 500
+    return redirect(url_for("doc", group=group))
+
+
+# ---------- 文書（PDF の全ページ） ----------
+@app.get("/doc/<group>")
+def doc(group):
+    pages = store().list_group(group)
+    if not pages:
+        abort(404)
+    prog = worker.get(group)
+    title = pages[0]["title"].rsplit(" p.", 1)[0]
+    return render_template("doc.html", group=group, pages=pages, prog=prog, title=title,
+                           running=worker.running(group), send_image=cfg()["send_image"],
+                           has_key=bool(config_mod.active(cfg())[2]))
+
+
+@app.post("/doc/<group>/annotate")
+def doc_annotate(group):
+    st = store()
+    pages = [j for j in st.list_group(group) if "ocr" in j and (request.form.get("redo") == "on" or "annotation" not in j)]
+    if not pages:
+        flash("現代語訳の対象ページがありません（OCR 未完了、または全ページ訳済み）")
+        return redirect(url_for("doc", group=group))
+    try:
+        worker.start_annotate(st, [j["id"] for j in pages], group, request.form.get("use_image") == "on")
+    except RuntimeError as e:
+        flash(str(e))
+    return redirect(url_for("doc", group=group))
+
+
+@app.post("/doc/<group>/retry_ocr")
+def doc_retry_ocr(group):
+    st = store()
+    pages = [j["id"] for j in st.list_group(group) if "ocr" not in j]
+    if pages:
+        try:
+            worker.start_ocr(st, pages, group, cfg()["device"])
+        except RuntimeError as e:
+            flash(str(e))
+    return redirect(url_for("doc", group=group))
+
+
+@app.post("/doc/<group>/delete")
+def doc_delete(group):
+    st = store()
+    if worker.running(group):
+        flash("処理中は削除できません")
+        return redirect(url_for("doc", group=group))
+    for j in st.list_group(group):
+        st.delete(j["id"])
+    flash("文書を削除しました")
+    return redirect(url_for("jobs"))
+
+
+@app.get("/doc/<group>/markdown")
+def doc_markdown(group):
+    from kobun.annotate import Annotation
+
+    pages = store().list_group(group)
+    if not pages:
+        abort(404)
+    title = pages[0]["title"].rsplit(" p.", 1)[0]
+    out = [f"# {title}", ""]
+    for j in pages:
+        out.append(f"## p.{j.get('page')}")
+        out.append("")
+        if j.get("annotation"):
+            out.append(Annotation(**j["annotation"]).to_markdown().replace("\n## ", "\n### "))
+        elif j.get("ocr"):
+            out += ["### 翻刻（OCR生）", "", j["ocr"]["text"], ""]
+        else:
+            out += ["（OCR 未完了）", ""]
+    return "\n".join(out), 200, {"Content-Type": "text/markdown; charset=utf-8"}
 
 
 # ---------- 一覧・検索 ----------
@@ -92,7 +190,16 @@ def review(job_id):
         job = store().load(job_id)
     except KeyError:
         abort(404)
-    return render_template("review.html", job_id=job_id, job=job, send_image=cfg()["send_image"])
+    prev_id = next_id = None
+    if job.get("group"):
+        pages = store().list_group(job["group"])
+        ids = [j["id"] for j in pages]
+        i = ids.index(job_id) if job_id in ids else -1
+        if i > 0:
+            prev_id = ids[i - 1]
+        if 0 <= i < len(ids) - 1:
+            next_id = ids[i + 1]
+    return render_template("review.html", job_id=job_id, job=job, send_image=cfg()["send_image"], prev_id=prev_id, next_id=next_id)
 
 
 @app.post("/job/<job_id>/title")
@@ -117,7 +224,9 @@ def annotate_job(job_id):
 
     st = store()
     job = st.load(job_id)
-    text = request.form.get("honkoku", job["ocr"]["text"])
+    text = request.form.get("honkoku", (job.get("ocr") or {}).get("text", ""))
+    if not text.strip():
+        return render_template("error.html", message="翻刻テキストが空です（OCR 未完了）。"), 400
     context = request.form.get("context", job.get("context", ""))
     use_image = request.form.get("use_image") == "on"
     img = st.media_path(job_id, "preview.jpg") if use_image else None

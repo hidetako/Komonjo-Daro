@@ -4,7 +4,8 @@
   <h2 style="margin-top:0">画像を読み込む</h2>
   {% if not has_key %}<p class="ng">{{ provider_label }} の API キーが未設定です。OCR は動きますが、現代語訳には <a href="{{ url_for('settings') }}">設定</a> でキーを入力してください。</p>{% else %}<p class="sub">現代語訳: {{ provider_label }} / {{ model }}（<a href="{{ url_for('settings') }}">変更</a>）</p>{% endif %}
   <form method="post" action="{{ url_for('ocr') }}" enctype="multipart/form-data" data-busy="OCR を実行しています（CPUで数秒〜数十秒。初回はモデル読み込みで少し長め）…">
-    <p><input type="file" name="image" accept=".jpg,.jpeg,.png,.tif,.tiff,.jp2,.bmp" required></p>
+    <p><input type="file" name="image" accept=".jpg,.jpeg,.png,.tif,.tiff,.jp2,.bmp,.pdf" required></p>
+    <p><input type="text" name="pages" placeholder="PDF のページ範囲（例: 1-5, 8, 12-）空欄なら全ページ。PDF は 1 ページ 1 件として登録し、OCR は順に裏で実行"></p>
     <p><input type="text" name="title" placeholder="タイトル（例: 竹取物語 上 2丁表）未入力ならファイル名"></p>
     <p><input type="text" name="context" placeholder="補足（資料名・刊年・所蔵など。Claude に渡す。任意）"></p>
     <p><button type="submit">OCR を実行</button> <span class="sub">device: {{ device }}</span></p>
@@ -17,7 +18,7 @@
   {% for j in recent %}
     <a class="cardj" href="{{ url_for('review', job_id=j.id) }}">
       <div class="thumb"><img src="{{ url_for('media', job_id=j.id, name='thumb.jpg') }}" alt=""></div>
-      <div class="meta"><div class="title">{{ j.title }}</div><div class="sub">{{ j.created_str }}{% if j.has_annotation %}　現代語訳あり{% endif %}</div></div>
+      <div class="meta"><div class="title">{{ j.title }}</div><div class="sub">{{ j.created_str }}{% if not j.has_ocr %}　<span class="ng">OCR 待ち</span>{% elif j.has_annotation %}　現代語訳あり{% endif %}</div></div>
     </a>
   {% endfor %}
   </div>

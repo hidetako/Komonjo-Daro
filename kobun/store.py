@@ -29,6 +29,10 @@ class JobSummary:
     created: float
     has_annotation: bool
     summary: str
+    group: str = ""
+    page: int = 0
+    pages_total: int = 0
+    has_ocr: bool = True
 
     @property
     def created_str(self) -> str:
@@ -66,6 +70,36 @@ class Store:
         self.save(job_id, job)
         return job_id
 
+    def create_from_image(self, image: Image.Image, title: str, group: str, page: int, pages_total: int,
+                          original_name: str, context: str = "") -> str:
+        """PDF から展開したページ画像を 1 件として登録する。"""
+        job_id = uuid.uuid4().hex[:12]
+        d = self.job_dir(job_id)
+        d.mkdir(parents=True)
+        original = d / "original.jpg"
+        image.convert("RGB").save(original, quality=92)
+        make_derivatives(original, d)
+        job = {
+            "id": job_id, "title": title, "original_name": original_name, "original": original.name,
+            "context": context, "created": time.time() + page / 1000.0,   # ページ順に並ぶよう微調整
+            "group": group, "page": page, "pages_total": pages_total,
+        }
+        self.save(job_id, job)
+        return job_id
+
+    def list_group(self, group: str) -> list[dict]:
+        """同じ文書（PDF）から出たページを、ページ順に job 辞書で返す。"""
+        out = []
+        for p in self.jobs_dir.glob("*/job.json"):
+            try:
+                job = json.loads(p.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if job.get("group") == group:
+                out.append(job)
+        out.sort(key=lambda j: j.get("page", 0))
+        return out
+
     def load(self, job_id: str) -> dict:
         p = self.job_dir(job_id) / "job.json"
         if not p.exists():
@@ -101,6 +135,8 @@ class Store:
                 id=job["id"], title=job.get("title") or job.get("original_name", ""),
                 created=float(job.get("created", p.stat().st_mtime)),
                 has_annotation=bool(ann), summary=ann.get("summary", ""),
+                group=job.get("group", ""), page=int(job.get("page", 0)), pages_total=int(job.get("pages_total", 0)),
+                has_ocr="ocr" in job,
             ))
         out.sort(key=lambda j: j.created, reverse=True)
         return out

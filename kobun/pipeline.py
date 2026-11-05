@@ -17,7 +17,8 @@ from .ocr_ndl import run_ocr
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="古典籍画像を翻刻・現代語訳する")
-    p.add_argument("image", help="画像ファイル (jpg/png/tif/jp2/bmp)")
+    p.add_argument("image", help="画像ファイル (jpg/png/tif/jp2/bmp) または PDF")
+    p.add_argument("--pages", default="", help="PDF のページ範囲（例: 1-5,8）。空なら全ページ")
     p.add_argument("--out", default="data/results", help="出力ディレクトリ")
     p.add_argument("--device", default=None, choices=["cpu", "cuda"], help="既定は設定ファイルの値")
     p.add_argument("--no-llm", action="store_true", help="OCRのみ実行")
@@ -32,6 +33,22 @@ def main(argv: list[str] | None = None) -> int:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     stem = Path(args.image).stem
+
+    if Path(args.image).suffix.lower() == ".pdf":
+        from . import pdf as _pdf
+        import tempfile
+
+        pages = _pdf.parse_page_range(args.pages, _pdf.page_count(args.image))
+        print(f"PDF {len(pages)} ページを処理", file=sys.stderr)
+        rc = 0
+        with tempfile.TemporaryDirectory() as td:
+            for pno, im in _pdf.render_pages(args.image, pages):
+                img = Path(td) / f"{stem}_p{pno:03d}.jpg"
+                im.save(img, quality=92)
+                print(f"--- p.{pno}", file=sys.stderr)
+                rc |= main([str(img), "--out", str(out), "--context", args.context] + (["--no-llm"] if args.no_llm else [])
+                           + (["--no-image"] if args.no_image else []) + (["--device", args.device] if args.device else []))
+        return rc
 
     print(f"[1/2] OCR (device={device}) ...", file=sys.stderr)
     ocr = run_ocr(args.image, device=device, viz=args.viz)

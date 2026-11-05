@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} - Komonjo-Daro{% endblock %}
+{% block headertools %}
+  <a class="btn secondary" href="{{ url_for('doc_markdown', group=group) }}">Markdown（全ページ）</a>
+{% endblock %}
+{% block body %}
+{% if running %}<meta http-equiv="refresh" content="4">{% endif %}
+<div class="card">
+  <h2 style="margin:0 0 6px">{{ title }}</h2>
+  <p class="sub" style="margin:0">{{ pages|length }} ページ　{{ pages[0].original_name }}
+    {% set n_ocr = pages|selectattr('ocr')|list|length %}{% set n_ann = pages|selectattr('annotation')|list|length %}
+    　OCR 済 {{ n_ocr }}／現代語訳済 {{ n_ann }}</p>
+  {% if prog %}
+    <p style="margin:10px 0 0">
+      {% if not prog.finished %}<span class="spinner" style="display:inline-block; width:14px; height:14px; border-width:2px; vertical-align:middle"></span>
+        {{ 'OCR' if prog.kind == 'ocr' else '現代語訳' }} 実行中 {{ prog.done }}/{{ prog.total }}　<span class="sub">{{ prog.current }}</span>
+      {% else %}<span class="ok">{{ 'OCR' if prog.kind == 'ocr' else '現代語訳' }} 完了 {{ prog.done }}/{{ prog.total }}</span>{% endif %}
+    </p>
+    {% if prog.errors %}<div class="err" style="margin-top:8px">{% for e in prog.errors %}{{ e }}
+{% endfor %}</div>{% endif %}
+  {% endif %}
+  <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; align-items:center">
+    <form method="post" action="{{ url_for('doc_annotate', group=group) }}">
+      <label class="sub"><input type="checkbox" name="use_image" {{ 'checked' if send_image }}> 画像も送る</label>
+      <label class="sub" style="margin-left:8px"><input type="checkbox" name="redo"> 訳済みもやり直す</label>
+      <button type="submit" {{ 'disabled' if running or not has_key }} style="margin-left:8px">未訳のページを一括で現代語訳</button>
+      {% if not has_key %}<span class="ng sub">API キー未設定</span>{% endif %}
+    </form>
+    {% if n_ocr < pages|length and not running %}
+    <form method="post" action="{{ url_for('doc_retry_ocr', group=group) }}"><button type="submit" class="secondary">未完了ページの OCR を再実行</button></form>
+    {% endif %}
+    <span style="flex:1"></span>
+    <form method="post" action="{{ url_for('doc_delete', group=group) }}" onsubmit="return confirm('この文書の全ページを削除しますか？')"><button type="submit" class="secondary" {{ 'disabled' if running }}>文書を削除</button></form>
+  </div>
+</div>
+<div class="cards">
+{% for j in pages %}
+  <a class="cardj" href="{{ url_for('review', job_id=j.id) }}">
+    <div class="thumb"><img src="{{ url_for('media', job_id=j.id, name='thumb.jpg') }}" alt=""></div>
+    <div class="meta">
+      <div class="title">p.{{ j.page }}</div>
+      <div class="sub">{% if j.annotation %}現代語訳済{% elif j.ocr %}OCR 済（{{ j.ocr.lines|length }} 行）{% elif j.error %}<span class="ng">失敗</span>{% else %}OCR 待ち{% endif %}</div>
+      {% if j.annotation %}<div class="snip">{{ j.annotation.summary }}</div>{% elif j.ocr %}<div class="snip">{{ j.ocr.text[:60] }}</div>{% endif %}
+    </div>
+  </a>
+{% endfor %}
+</div>
+{% endblock %}

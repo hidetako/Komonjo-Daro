@@ -16,7 +16,7 @@
     <div class="thumb"><img src="{{ url_for('media', job_id=j.id, name='thumb.jpg') }}" alt=""></div>
     <div class="meta">
       <div class="title">{{ j.title }}</div>
-      <div class="sub">{{ j.created_str }}{% if j.has_annotation %}　現代語訳あり{% endif %}</div>
+      <div class="sub">{{ j.created_str }}{% if not j.has_ocr %}　<span class="ng">OCR 待ち</span>{% elif j.has_annotation %}　現代語訳あり{% endif %}{% if j.group %}　<span title="PDF {{ j.pages_total }} ページ中">p.{{ j.page }}/{{ j.pages_total }}</span>{% endif %}</div>
       {% if j.summary %}<div class="snip">{{ j.summary }}</div>{% endif %}
     </div>
   </a>

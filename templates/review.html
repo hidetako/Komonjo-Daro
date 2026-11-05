@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 {% block title %}{{ job.title }} - Komonjo-Daro{% endblock %}
 {% block headertools %}
+  {% if job.group %}
+    {% if prev_id %}<a class="btn secondary" href="{{ url_for('review', job_id=prev_id) }}">← 前のページ</a>{% endif %}
+    <a class="btn secondary" href="{{ url_for('doc', group=job.group) }}">文書 p.{{ job.page }}/{{ job.pages_total }}</a>
+    {% if next_id %}<a class="btn secondary" href="{{ url_for('review', job_id=next_id) }}">次のページ →</a>{% endif %}
+  {% endif %}
   <span class="sub">レイアウト</span>
   <span class="seg" id="layout-seg">
     <button type="button" data-layout="layout-h" title="左に古文書、右に読み取り">左右</button>
@@ -25,7 +30,7 @@
     <div class="viewer" id="viewer">
       <img id="page" src="{{ url_for('media', job_id=job_id, name='preview.jpg') }}" alt="資料画像">
     </div>
-    <p class="sub" style="margin:6px 0 0; display:flex; gap:10px; align-items:center">{{ job.ocr.lines|length }} 行を認識（{{ job.ocr.width }}×{{ job.ocr.height }}px）　{{ job.original_name }}
+    <p class="sub" style="margin:6px 0 0; display:flex; gap:10px; align-items:center">{% if job.ocr %}{{ job.ocr.lines|length }} 行を認識{% else %}OCR {{ '失敗: ' + job.error if job.error else '待ち' }}{% endif %}{% if job.ocr %}（{{ job.ocr.width }}×{{ job.ocr.height }}px）{% endif %}　{{ job.original_name }}
       <span style="flex:1"></span>
       <form method="post" action="{{ url_for('delete_job', job_id=job_id) }}" onsubmit="return confirm('この資料と結果を削除しますか？')"><button type="submit" class="secondary" style="padding:3px 8px; font-size:12px">削除</button></form></p>
   </section>
@@ -53,7 +58,7 @@
         <pre id="hk" class="text">{{ a.honkoku }}</pre>
       {% else %}
         <p class="sub">OCR 生テキスト（まだ校訂していません。「現代語訳を作成」タブから実行）</p>
-        <pre class="text">{{ job.ocr.text }}</pre>
+        <pre class="text">{{ job.ocr.text if job.ocr else '（OCR 未完了）' }}</pre>
       {% endif %}
     </div>
 
@@ -86,7 +91,7 @@
     <div class="tab" id="tab-edit">
       <form method="post" action="{{ url_for('annotate_job', job_id=job_id) }}" data-busy="Claude が校訂・現代語訳・注釈を作成しています（数十秒）…">
         <p class="sub" style="margin-top:0">OCR 結果を必要なら手で直してから送信してください。明らかな誤読を直しておくと校訂精度が上がります。</p>
-        <textarea name="honkoku" rows="14">{{ job.edited_honkoku or job.ocr.text }}</textarea>
+        <textarea name="honkoku" rows="14">{{ job.edited_honkoku or (job.ocr.text if job.ocr else '') }}</textarea>
         <p><input type="text" name="context" value="{{ job.context }}" placeholder="補足（資料名・巻・刊年など。任意）"></p>
         <p><label><input type="checkbox" name="use_image" {{ 'checked' if send_image }}> 画像も Claude に送って校訂させる（精度↑・費用↑）</label></p>
         <p><button type="submit">{% if a %}再実行する{% else %}現代語訳・注釈を作成{% endif %}</button></p>
