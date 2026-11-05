@@ -46,9 +46,17 @@
   textarea { width:100%; font-family:inherit; font-size:16px; line-height:1.9; padding:10px; border:1px solid var(--line); background:#fff; border-radius:4px; }
   input[type=text] { width:100%; padding:8px; border:1px solid var(--line); border-radius:4px; font-family:inherit; }
   pre.text { white-space:pre-wrap; font-family:inherit; font-size:17px; line-height:2; margin:0; }
-  pre.text.vertical { writing-mode:vertical-rl; height:60vh; overflow-x:auto; }
   pre.jibo { font-size:15px; line-height:2.1; letter-spacing:0.02em; }
-  dl.notes dt { font-weight:bold; margin-top:10px; color:var(--accent); } dl.notes dd { margin:2px 0 0 1em; }
+  dl.notes { margin:0; } dl.notes dt { font-weight:bold; margin-block-start:10px; color:var(--accent); } dl.notes dd { margin:2px 0 0; margin-inline-start:1em; }
+  /* ---- 縦書き（既定）。.vtext を持つ要素を右から左へ流す。表と入力欄は横のまま ---- */
+  .read-panel { --vh: calc(100vh - 230px); }
+  .workspace.layout-v .read-panel { --vh: 56vh; }
+  .read-panel.vertical .vtext { writing-mode:vertical-rl; text-orientation:mixed; height:var(--vh); max-height:var(--vh); overflow-x:auto; overflow-y:hidden; padding-left:8px; }
+  .read-panel.vertical pre.vtext { white-space:pre-wrap; }
+  .read-panel.vertical .vtext ul, .read-panel.vertical .vtext ol { padding-inline-start:1.2em; margin:0; }
+  .read-panel.vertical .tab-note { writing-mode:horizontal-tb; }
+  .read-panel:not(.vertical) .vtext { max-height:var(--vh); overflow-y:auto; }
+  @media (max-width:900px) { .read-panel { --vh: 56vh; } }
   ul.jobs li { margin:6px 0; }
   .err { background:#fff3f3; border:1px solid #e0b4b4; padding:14px; white-space:pre-wrap; border-radius:4px; }
 

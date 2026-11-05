@@ -11,6 +11,11 @@
     <button type="button" data-layout="layout-h" title="左に古文書、右に読み取り">左右</button>
     <button type="button" data-layout="layout-v" title="上に古文書、下に読み取り">上下</button>
   </span>
+  <span class="sub">文字</span>
+  <span class="seg" id="writing-seg">
+    <button type="button" data-writing="vertical" title="原典に合わせて縦書き">縦</button>
+    <button type="button" data-writing="horizontal">横</button>
+  </span>
   {% if job.annotation %}<a class="btn secondary" href="{{ url_for('markdown', job_id=job_id) }}">Markdown</a>{% endif %}
 {% endblock %}
 {% block body %}
@@ -41,6 +46,7 @@
       <button type="button" data-tab="honkoku" class="active">翻刻</button>
       {% if a %}
       <button type="button" data-tab="gendaigo">現代語訳</button>
+      <button type="button" data-tab="jibo">字母</button>
       <button type="button" data-tab="notes">注釈</button>
       <button type="button" data-tab="check">修正・不確実</button>
       <button type="button" data-tab="summary">要約</button>
@@ -50,35 +56,29 @@
 
     <div class="tab active" id="tab-honkoku">
       {% if a %}
-        <div class="toolbar">
-          <span class="sub">校訂済み翻刻（Claude が画像で確認して修正）</span>
-          <span style="flex:1"></span>
-          <button type="button" class="secondary" id="vtoggle">縦書き</button>
-        </div>
-        <pre id="hk" class="text">{{ a.honkoku }}</pre>
+        <p class="sub tab-note" style="margin:0 0 8px">校訂済み翻刻（AI が画像で確認して修正）</p>
+        <pre id="hk" class="text vtext">{{ a.honkoku }}</pre>
       {% else %}
-        <p class="sub">OCR 生テキスト（まだ校訂していません。「現代語訳を作成」タブから実行）</p>
-        <pre class="text">{{ job.ocr.text if job.ocr else '（OCR 未完了）' }}</pre>
+        <p class="sub tab-note" style="margin:0 0 8px">OCR 生テキスト（まだ校訂していません。「現代語訳を作成」タブから実行）</p>
+        <pre class="text vtext">{{ job.ocr.text if job.ocr else '（OCR 未完了）' }}</pre>
       {% endif %}
     </div>
 
     {% if a %}
     <div class="tab" id="tab-gendaigo">
-      <pre class="text" style="font-size:16px">{{ a.gendaigo }}</pre>
+      <pre class="text vtext" style="font-size:16px">{{ a.gendaigo }}</pre>
+    </div>
+    <div class="tab" id="tab-jibo">
       {% if a.jibo %}
-      <div class="toolbar" style="margin-top:22px; border-top:1px solid var(--line); padding-top:12px">
-        <span class="sub">字母付き翻刻　各かなの元になった漢字（万葉仮名・変体仮名の字母）を「字母(かな)」で示す。? は字母の判定に自信がない箇所</span>
-        <span style="flex:1"></span>
-        <button type="button" class="secondary" id="jibo-vtoggle">縦書き</button>
-      </div>
-      <pre id="jibo" class="text jibo">{{ a.jibo }}</pre>
+      <p class="sub tab-note" style="margin:0 0 8px">各かなの元になった漢字（万葉仮名・変体仮名の字母）を「字母（かな）」で示す。？は字母の判定に自信がない箇所</p>
+      <pre id="jibo" class="text jibo vtext">{{ a.jibo|replace('(', '（')|replace(')', '）')|replace('?', '？') }}</pre>
       {% else %}
-      <p class="sub" style="margin-top:22px">字母付き翻刻は v0.5.0 以降の結果に付きます。「再実行」タブから作り直すと表示されます。</p>
+      <p class="sub">字母付き翻刻は v0.5.0 以降の結果に付きます。「再実行」タブから作り直すと表示されます。</p>
       {% endif %}
     </div>
     <div class="tab" id="tab-notes">
       {% if a.annotations %}
-      <dl class="notes">{% for n in a.annotations %}<dt>{{ n.term }}</dt><dd>{{ n.note }}</dd>{% endfor %}</dl>
+      <div class="vtext"><dl class="notes">{% for n in a.annotations %}<dt>{{ n.term }}</dt><dd>{{ n.note }}</dd>{% endfor %}</dl></div>
       {% else %}<p class="sub">注釈なし</p>{% endif %}
     </div>
     <div class="tab" id="tab-check">
@@ -90,11 +90,13 @@
       </table>
       {% else %}<p class="sub">修正なし</p>{% endif %}
       <h4 style="margin:18px 0 8px">不確実な箇所</h4>
-      {% if a.uncertain %}<ul>{% for u in a.uncertain %}<li>{{ u }}</li>{% endfor %}</ul>{% else %}<p class="sub">なし</p>{% endif %}
+      {% if a.uncertain %}<ul style="margin:0">{% for u in a.uncertain %}<li>{{ u }}</li>{% endfor %}</ul>{% else %}<p class="sub">なし</p>{% endif %}
     </div>
     <div class="tab" id="tab-summary">
-      <p style="font-size:16px; line-height:1.9">{{ a.summary }}</p>
-      <p class="sub">推定時代: {{ a.era_guess }}<br>model: {{ a.model }}　tokens in/out: {{ a.input_tokens }}/{{ a.output_tokens }}</p>
+      <pre class="text vtext" style="font-size:16px">{{ a.summary }}
+
+推定時代　{{ a.era_guess }}</pre>
+      <p class="sub tab-note" style="margin-top:10px">model: {{ a.model }}　tokens in/out: {{ a.input_tokens }}/{{ a.output_tokens }}</p>
     </div>
     {% endif %}
 
@@ -152,10 +154,18 @@
     zoom.value = Math.min(400, Math.max(100, +zoom.value + (e.deltaY < 0 ? 10 : -10))); applyZoom();
   }, {passive:false});
 
-  // 縦書き切替
-  const vt = document.getElementById('vtoggle'), hk = document.getElementById('hk');
-  if (vt) vt.addEventListener('click', () => { hk.classList.toggle('vertical'); vt.classList.toggle('active'); });
-  const jv = document.getElementById('jibo-vtoggle'), jb = document.getElementById('jibo');
-  if (jv) jv.addEventListener('click', () => { jb.classList.toggle('vertical'); jv.classList.toggle('active'); });
+  // 縦書き／横書き（既定は縦。原典に合わせる）
+  const rp = document.querySelector('.read-panel'), wButtons = document.querySelectorAll('#writing-seg button');
+  function setWriting(w){
+    rp.classList.toggle('vertical', w === 'vertical');
+    wButtons.forEach(b => b.classList.toggle('active', b.dataset.writing === w));
+    try { localStorage.setItem('komonjo-writing', w); } catch(e){}
+    // 縦書きは右端から読み始めるので、スクロール位置を右端に
+    if (w === 'vertical') document.querySelectorAll('.vtext').forEach(el => { el.scrollLeft = el.scrollWidth; });
+  }
+  wButtons.forEach(b => b.addEventListener('click', () => setWriting(b.dataset.writing)));
+  let savedW = null; try { savedW = localStorage.getItem('komonjo-writing'); } catch(e){}
+  setWriting(savedW === 'horizontal' ? 'horizontal' : 'vertical');
+  tabButtons.forEach(b => b.addEventListener('click', () => { if (rp.classList.contains('vertical')) document.querySelectorAll('.vtext').forEach(el => { el.scrollLeft = el.scrollWidth; }); }));
 </script>
 {% endblock %}
