@@ -20,7 +20,8 @@ datas += collect_data_files("pypdfium2")
 hiddenimports = (
     collect_submodules("onnxruntime") + collect_submodules("networkx") + collect_submodules("lxml")
     + collect_submodules("reportlab") + collect_submodules("pystray") + collect_submodules("PIL")
-    + ["yaml", "dill", "tqdm", "ordered_set", "pyparsing", "pypdfium2", "pypdfium2_raw", "dotenv", "anthropic"]
+    + collect_submodules("openai") + collect_submodules("pydantic") + collect_submodules("anthropic")
+    + ["yaml", "dill", "tqdm", "ordered_set", "pyparsing", "pypdfium2", "pypdfium2_raw", "dotenv", "jiter", "distro", "httpx", "httpx2", "sniffio", "anyio"]
 )
 
 a = Analysis(

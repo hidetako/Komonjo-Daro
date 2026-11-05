@@ -2,7 +2,7 @@
 {% block body %}
 <div class="card">
   <h2 style="margin-top:0">画像を読み込む</h2>
-  {% if not has_key %}<p class="ng">Claude の API キーが未設定です。OCR は動きますが、現代語訳には <a href="{{ url_for('settings') }}">設定</a> でキーを入力してください。</p>{% endif %}
+  {% if not has_key %}<p class="ng">{{ provider_label }} の API キーが未設定です。OCR は動きますが、現代語訳には <a href="{{ url_for('settings') }}">設定</a> でキーを入力してください。</p>{% else %}<p class="sub">現代語訳: {{ provider_label }} / {{ model }}（<a href="{{ url_for('settings') }}">変更</a>）</p>{% endif %}
   <form method="post" action="{{ url_for('ocr') }}" enctype="multipart/form-data" data-busy="OCR を実行しています（CPUで数秒〜数十秒。初回はモデル読み込みで少し長め）…">
     <p><input type="file" name="image" accept=".jpg,.jpeg,.png,.tif,.tiff,.jp2,.bmp" required></p>
     <p><input type="text" name="title" placeholder="タイトル（例: 竹取物語 上 2丁表）未入力ならファイル名"></p>

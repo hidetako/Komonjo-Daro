@@ -3,23 +3,50 @@
 {% block body %}
 <form method="post" action="{{ url_for('settings_save') }}" id="settings-form">
 <div class="card">
-  <h3 style="margin-top:0">Claude API</h3>
+  <h3 style="margin-top:0">現代語訳・注釈に使う AI</h3>
   <div class="form-row">
-    <label class="k">API キー</label>
+    <label class="k">プロバイダ</label>
     <div>
-      <input type="password" name="api_key" id="api_key" placeholder="{{ masked or 'sk-ant-... を貼り付け' }}" autocomplete="off">
-      <p class="sub" style="margin:6px 0 0">{% if masked %}現在: {{ masked }}（変更しないなら空のまま）{% else %}未設定。<a href="https://console.anthropic.com/settings/keys" target="_blank">Anthropic Console</a> で発行できます。{% endif %}
-        <button type="button" class="secondary" id="test-key" style="padding:4px 10px; font-size:13px">キーを確認</button> <span id="test-result"></span></p>
-      {% if masked %}<label class="sub"><input type="checkbox" name="clear_key"> キーを削除する</label>{% endif %}
+      {% for pid, pinfo in providers.items() %}<label style="margin-right:18px"><input type="radio" name="provider" value="{{ pid }}" {{ 'checked' if c.provider == pid }}> {{ pinfo.label }}</label>{% endfor %}
     </div>
-    <label class="k">モデル</label>
-    <input type="text" name="model" value="{{ c.model }}">
     <label class="k">思考の深さ</label>
     <select name="effort">{% for e in ['low','medium','high','xhigh','max'] %}<option value="{{ e }}" {{ 'selected' if c.effort == e }}>{{ e }}</option>{% endfor %}</select>
     <label class="k">画像を同送</label>
-    <label><input type="checkbox" name="send_image" {{ 'checked' if c.send_image }}> 既定で画像も Claude に送る（校訂精度↑・費用↑）</label>
+    <label><input type="checkbox" name="send_image" {{ 'checked' if c.send_image }}> 既定で画像も AI に送る（校訂精度↑・費用↑）</label>
+  </div>
+  <p class="sub">OpenAI では、各モデルが受け付ける範囲に丸めます（GPT-6 系は max まで、GPT-5.5／5.4 系は xhigh まで、それ以前は high まで）。推論に対応しないモデルでは無視されます。</p>
+</div>
+
+{% macro provider_block(pid, label, key_field, clear_field, masked, model_field, model_value, console) %}
+<div class="card provider-block" data-provider="{{ pid }}">
+  <h3 style="margin-top:0">{{ label }}</h3>
+  <div class="form-row">
+    <label class="k">API キー</label>
+    <div>
+      <input type="password" name="{{ key_field }}" id="{{ key_field }}" placeholder="{{ masked or 'キーを貼り付け' }}" autocomplete="off">
+      <p class="sub" style="margin:6px 0 0">{% if masked %}現在: {{ masked }}（変更しないなら空のまま）{% else %}未設定。<a href="{{ console }}" target="_blank">発行ページ</a>{% endif %}
+        <button type="button" class="secondary test-key" data-provider="{{ pid }}" data-key="{{ key_field }}" style="padding:4px 10px; font-size:13px">キーを確認</button> <span class="test-result"></span></p>
+      {% if masked %}<label class="sub"><input type="checkbox" name="{{ clear_field }}"> キーを削除する</label>{% endif %}
+    </div>
+    <label class="k">モデル</label>
+    <div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap">
+        <select name="{{ model_field }}" id="{{ model_field }}" style="min-width:260px">
+          {% set found = namespace(v=false) %}
+          {% for mid, mlabel in curated[pid] %}<option value="{{ mid }}" {{ 'selected' if model_value == mid }}>{{ mlabel }}　{{ mid }}</option>{% if model_value == mid %}{% set found.v = true %}{% endif %}{% endfor %}
+          {% if not found.v %}<option value="{{ model_value }}" selected>{{ model_value }}</option>{% endif %}
+        </select>
+        <button type="button" class="secondary fetch-models" data-provider="{{ pid }}" data-key="{{ key_field }}" data-select="{{ model_field }}" style="padding:4px 10px; font-size:13px">一覧を取得</button>
+      </div>
+      <input type="text" name="{{ model_field }}_custom" placeholder="一覧にないモデル ID を直接指定（任意。入力するとこちらが優先）" style="margin-top:6px">
+      <span class="sub fetch-result"></span>
+    </div>
   </div>
 </div>
+{% endmacro %}
+{{ provider_block('anthropic', providers.anthropic.label, 'api_key', 'clear_key', masked, 'model', c.model, providers.anthropic.console) }}
+{{ provider_block('openai', providers.openai.label, 'openai_api_key', 'clear_openai_key', masked_openai, 'openai_model', c.openai_model, providers.openai.console) }}
+
 <div class="card">
   <h3 style="margin-top:0">保存先</h3>
   <div class="form-row">
@@ -62,11 +89,29 @@
     const r = await fetch('{{ url_for('browse_folder') }}', {method:'POST', body: fd});
     const j = await r.json(); if (j.path) document.getElementById('data_dir').value = j.path;
   });
-  document.getElementById('test-key').addEventListener('click', async () => {
-    const out = document.getElementById('test-result'); out.textContent = '確認中…'; out.className = 'sub';
-    const fd = new FormData(); fd.append('api_key', document.getElementById('api_key').value);
+  // プロバイダ選択で、使う方のブロックを強調
+  function syncProvider(){
+    const v = document.querySelector('input[name=provider]:checked').value;
+    document.querySelectorAll('.provider-block').forEach(b => b.style.opacity = (b.dataset.provider === v ? '1' : '.55'));
+  }
+  document.querySelectorAll('input[name=provider]').forEach(r => r.addEventListener('change', syncProvider)); syncProvider();
+
+  document.querySelectorAll('.test-key').forEach(btn => btn.addEventListener('click', async () => {
+    const out = btn.parentElement.querySelector('.test-result'); out.textContent = '確認中…'; out.className = 'test-result sub';
+    const fd = new FormData(); fd.append('provider', btn.dataset.provider); fd.append('api_key', document.getElementById(btn.dataset.key).value);
     const r = await fetch('{{ url_for('test_key') }}', {method:'POST', body: fd});
-    const j = await r.json(); out.textContent = j.message; out.className = j.ok ? 'ok' : 'ng';
-  });
+    const j = await r.json(); out.textContent = j.message; out.className = 'test-result ' + (j.ok ? 'ok' : 'ng');
+  }));
+  document.querySelectorAll('.fetch-models').forEach(btn => btn.addEventListener('click', async () => {
+    const out = btn.closest('div').parentElement.querySelector('.fetch-result'); out.textContent = '取得中…';
+    const fd = new FormData(); fd.append('provider', btn.dataset.provider); fd.append('api_key', document.getElementById(btn.dataset.key).value);
+    const r = await fetch('{{ url_for('models_list') }}', {method:'POST', body: fd});
+    const j = await r.json();
+    if (!j.ok) { out.textContent = j.message; return; }
+    const sel = document.getElementById(btn.dataset.select); const cur = sel.value; sel.innerHTML = '';
+    j.models.forEach(m => { const o = document.createElement('option'); o.value = m; o.textContent = m; if (m === cur) o.selected = true; sel.appendChild(o); });
+    if (![...sel.options].some(o => o.selected)) { const o = document.createElement('option'); o.value = cur; o.textContent = cur + '（現在の設定）'; o.selected = true; sel.prepend(o); }
+    out.textContent = j.models.length + ' 件を API から取得しました';
+  }));
 </script>
 {% endblock %}

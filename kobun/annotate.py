@@ -1,4 +1,4 @@
-"""翻刻テキスト（＋画像）を Claude に渡し、校訂・現代語訳・注釈を構造化JSONで受け取る。"""
+"""翻刻テキスト（＋画像）を LLM（Claude / GPT）に渡し、校訂・現代語訳・注釈を構造化JSONで受け取る。"""
 from __future__ import annotations
 
 import base64
@@ -8,11 +8,11 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-import anthropic
 from dotenv import load_dotenv
 from PIL import Image, ImageOps
 
 from . import config as _config
+from . import llm
 
 # 開発時は .env（プロジェクト直下）も読む
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
@@ -21,7 +21,7 @@ MODEL = os.environ.get("KOBUN_MODEL", "claude-opus-5-5")
 EFFORT = os.environ.get("KOBUN_EFFORT", "high")
 MAX_IMAGE_EDGE = 1568  # これ以上大きくしても画像トークンは増えるだけで精度は上がらない
 
-SYSTEM_PROMPT = """あなたは日本古典籍（和古書・写本・版本）の翻刻と注釈を行う専門家です。
+SYSTEM_PROMPT = """あなたは日本古典籍（和古書・写本・版本）の翻刻と注釈を行う専門家です。出力は日本語で書きます。
 
 入力として、OCR（NDL古典籍OCR-Lite）が出力した翻刻テキストと、可能なら元の資料画像が与えられます。
 OCRは誤認識を含みます。画像がある場合は必ず画像を一次資料として優先し、OCRテキストは参考にとどめてください。
@@ -117,57 +117,44 @@ def encode_image(image_path: str | Path) -> tuple[str, str]:
     return base64.standard_b64encode(buf.getvalue()).decode("ascii"), "image/jpeg"
 
 
-def build_user_content(ocr_text: str, image_path: str | Path | None, context: str = "") -> list[dict]:
-    content: list[dict] = []
-    if image_path:
-        data, media = encode_image(image_path)
-        content.append({"type": "image", "source": {"type": "base64", "media_type": media, "data": data}})
+def build_user_text(ocr_text: str, context: str = "") -> str:
     parts = []
     if context.strip():
         parts.append(f"資料についての補足情報:\n{context.strip()}\n")
     parts.append("OCR翻刻テキスト（誤認識を含む）:\n" + ocr_text.strip())
     parts.append("\n上記を校訂し、現代語訳と注釈を作成してください。")
-    content.append({"type": "text", "text": "\n".join(parts)})
+    return "\n".join(parts)
+
+
+def build_user_content(ocr_text: str, image_path: str | Path | None, context: str = "") -> list[dict]:
+    """Anthropic 形式の content（テスト・互換用）。"""
+    content: list[dict] = []
+    if image_path:
+        data, media = encode_image(image_path)
+        content.append({"type": "image", "source": {"type": "base64", "media_type": media, "data": data}})
+    content.append({"type": "text", "text": build_user_text(ocr_text, context)})
     return content
 
 
 def annotate(ocr_text: str, image_path: str | Path | None = None, context: str = "", client=None,
-             model: str | None = None, effort: str | None = None, api_key: str | None = None) -> Annotation:
-    """OCRテキストと画像を Claude に送り、構造化された校訂・現代語訳・注釈を返す。
+             model: str | None = None, effort: str | None = None, api_key: str | None = None,
+             provider: str | None = None) -> Annotation:
+    """OCRテキストと画像を LLM に送り、構造化された校訂・現代語訳・注釈を返す。
 
-    APIキー・モデル・effort は引数 > 設定ファイル（設定画面） > 環境変数 の順で決まる。
+    プロバイダ・モデル・キーは 引数 > 設定ファイル（設定画面） > 環境変数 の順で決まる。
     """
     cfg = _config.load()
-    model = model or cfg.get("model") or MODEL
+    if provider:
+        cfg["provider"] = provider
+    provider, cfg_model, cfg_key = _config.active(cfg)
+    model = model or cfg_model
     effort = effort or cfg.get("effort") or EFFORT
-    if client is None:
-        key = api_key or cfg.get("api_key") or os.environ.get("ANTHROPIC_API_KEY") or ""
-        if not key and not os.environ.get("ANTHROPIC_AUTH_TOKEN"):
-            raise RuntimeError(
-                "Claude の API キーが設定されていません。画面右上の「設定」から入力してください。\n"
-                "（開発版は .env の ANTHROPIC_API_KEY でも可）"
-            )
-        client = anthropic.Anthropic(api_key=key) if key else anthropic.Anthropic()
-    with client.messages.stream(
-        model=model,
-        max_tokens=32000,
-        system=[{"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
-        messages=[{"role": "user", "content": build_user_content(ocr_text, image_path, context)}],
-        output_config={"effort": effort, "format": {"type": "json_schema", "schema": OUTPUT_SCHEMA}},
-    ) as stream:
-        response = stream.get_final_message()
-
-    if response.stop_reason == "refusal":
-        detail = getattr(response, "stop_details", None)
-        raise RuntimeError(f"モデルが応答を拒否しました: {getattr(detail, 'explanation', '')}")
-    if response.stop_reason == "max_tokens":
-        raise RuntimeError("出力が長すぎて途中で切れました。ページを分割して再実行してください。")
-
-    text = next(b.text for b in response.content if b.type == "text")
-    data = json.loads(text)
-    return Annotation(
-        **data,
-        model=response.model,
-        input_tokens=response.usage.input_tokens,
-        output_tokens=response.usage.output_tokens,
-    )
+    key = api_key or cfg_key
+    if client is None and not key and not (provider == "anthropic" and os.environ.get("ANTHROPIC_AUTH_TOKEN")):
+        raise RuntimeError(
+            f"{llm.PROVIDERS[provider]['label']} の API キーが設定されていません。画面右上の「設定」から入力してください。"
+        )
+    image = encode_image(image_path) if image_path else None
+    r = llm.call(provider, model, effort, key, SYSTEM_PROMPT, build_user_text(ocr_text, context), image, OUTPUT_SCHEMA, client=client)
+    data = llm.parse_json(r.text)
+    return Annotation(**data, model=r.model, input_tokens=r.input_tokens, output_tokens=r.output_tokens)

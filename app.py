@@ -17,6 +17,7 @@ from flask import Flask, abort, flash, jsonify, redirect, render_template, reque
 
 from kobun import __version__
 from kobun import config as config_mod
+from kobun import llm
 from kobun.ocr_ndl import NdlLiteNotFound, run_ocr
 from kobun.store import Store
 from kobun.updater import UpdateState, download_and_install, exit_app
@@ -47,7 +48,9 @@ def inject_globals():
 def index():
     recent = store().list()[:8]
     c = cfg()
-    return render_template("index.html", recent=recent, device=c["device"], has_key=bool(c["api_key"]))
+    prov, model, key = config_mod.active(c)
+    return render_template("index.html", recent=recent, device=c["device"], has_key=bool(key),
+                           provider_label=llm.PROVIDERS[prov]["label"], model=model)
 
 
 @app.post("/ocr")
@@ -156,19 +159,25 @@ def media(job_id, name):
 def settings():
     c = cfg()
     return render_template("settings.html", c=c, masked=config_mod.mask_key(c["api_key"]),
-                           config_path=str(config_mod.config_path()))
+                           masked_openai=config_mod.mask_key(c["openai_api_key"]),
+                           curated=llm.CURATED, providers=llm.PROVIDERS, config_path=str(config_mod.config_path()))
 
 
 @app.post("/settings")
 def settings_save():
     c = cfg()
     old_dir = c["data_dir"]
-    new_key = request.form.get("api_key", "").strip()
-    if new_key:
-        c["api_key"] = new_key
-    if request.form.get("clear_key") == "on":
-        c["api_key"] = ""
-    c["model"] = request.form.get("model", c["model"]).strip() or c["model"]
+    c["provider"] = request.form.get("provider", c["provider"])
+    if c["provider"] not in llm.PROVIDERS:
+        c["provider"] = "anthropic"
+    for form_key, cfg_key, clear in (("api_key", "api_key", "clear_key"), ("openai_api_key", "openai_api_key", "clear_openai_key")):
+        v = request.form.get(form_key, "").strip()
+        if v:
+            c[cfg_key] = v
+        if request.form.get(clear) == "on":
+            c[cfg_key] = ""
+    c["model"] = (request.form.get("model_custom", "").strip() or request.form.get("model", "").strip() or c["model"])
+    c["openai_model"] = (request.form.get("openai_model_custom", "").strip() or request.form.get("openai_model", "").strip() or c["openai_model"])
     c["effort"] = request.form.get("effort", c["effort"])
     c["device"] = request.form.get("device", c["device"])
     c["send_image"] = request.form.get("send_image") == "on"
@@ -220,21 +229,38 @@ def pick_folder(start: str) -> str:
         return ""
 
 
+def _key_for(provider: str, entered: str) -> str:
+    c = cfg()
+    saved = c["openai_api_key"] if provider == "openai" else c["api_key"]
+    return entered.strip() or saved
+
+
 @app.post("/settings/test_key")
 def test_key():
-    """入力中のキーで軽い呼び出しをして有効性を確認する。"""
-    import anthropic
-
-    key = request.form.get("api_key", "").strip() or cfg()["api_key"]
+    """入力中（または保存済み）のキーで軽い呼び出しをして有効性を確認する。"""
+    provider = request.form.get("provider", "anthropic")
+    if provider not in llm.PROVIDERS:
+        return jsonify({"ok": False, "message": "不明なプロバイダ"})
+    key = _key_for(provider, request.form.get("api_key", ""))
     if not key:
         return jsonify({"ok": False, "message": "キーが未入力です"})
+    ok, msg = llm.test_key(provider, key)
+    return jsonify({"ok": ok, "message": msg})
+
+
+@app.post("/settings/models")
+def models_list():
+    """各社 API からモデル一覧を取得する。"""
+    provider = request.form.get("provider", "anthropic")
+    if provider not in llm.PROVIDERS:
+        return jsonify({"ok": False, "message": "不明なプロバイダ", "models": []})
+    key = _key_for(provider, request.form.get("api_key", ""))
+    if not key:
+        return jsonify({"ok": False, "message": "キーが未入力です", "models": []})
     try:
-        anthropic.Anthropic(api_key=key).models.list(limit=1)
-        return jsonify({"ok": True, "message": "有効なキーです"})
-    except anthropic.AuthenticationError:
-        return jsonify({"ok": False, "message": "キーが無効です"})
+        return jsonify({"ok": True, "models": llm.list_models(provider, key)})
     except Exception as e:  # noqa: BLE001
-        return jsonify({"ok": False, "message": f"確認できませんでした: {e}"})
+        return jsonify({"ok": False, "message": f"取得できませんでした: {e}", "models": []})
 
 
 # ---------- 更新 ----------

@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Komonjo-Daro｜くずし字の古典籍を翻刻して現代語で読む Windows アプリ — NDL古典籍OCR-Lite × Claude・MIT｜よろづソリューションズ</title>
-<meta name="description" content="Komonjo-Daro は、版本・写本のページ画像からくずし字を翻刻し、現代語訳と注釈を付ける Windows アプリ。OCR は国立国会図書館の NDL古典籍OCR-Lite がパソコンの中だけで実行。校訂・現代語訳は利用者自身の Anthropic API キーで Claude が行います。本体は無料（MIT）。">
+<title>Komonjo-Daro｜くずし字の古典籍を翻刻して現代語で読む Windows アプリ — NDL古典籍OCR-Lite × Claude／GPT・MIT｜よろづソリューションズ</title>
+<meta name="description" content="Komonjo-Daro は、版本・写本のページ画像からくずし字を翻刻し、現代語訳と注釈を付ける Windows アプリ。OCR は国立国会図書館の NDL古典籍OCR-Lite がパソコンの中だけで実行。校訂・現代語訳は利用者自身の API キーで Claude（Anthropic）または GPT（OpenAI）が行います。本体は無料（MIT）。">
 <link rel="canonical" href="https://www.yorozusolutions.com/apps/komonjo-daro/">
 <meta name="theme-color" content="#17150f">
-<meta property="og:title" content="Komonjo-Daro｜くずし字の古典籍を翻刻して現代語で読む Windows アプリ — NDL古典籍OCR-Lite × Claude・MIT｜よろづソリューションズ">
+<meta property="og:title" content="Komonjo-Daro｜くずし字の古典籍を翻刻して現代語で読む Windows アプリ — NDL古典籍OCR-Lite × Claude／GPT・MIT｜よろづソリューションズ">
 <meta property="og:description" content="版本・写本のページ画像からくずし字を翻刻し、現代語訳と注釈を付ける Windows アプリ。OCR はオフライン、現代語訳は利用者自身の API キーで。本体は無料（MIT）。">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://www.yorozusolutions.com/apps/komonjo-daro/">
@@ -58,14 +58,14 @@
       "name": "Komonjo-Daro",
       "operatingSystem": "Windows 10, Windows 11",
       "applicationCategory": "EducationalApplication",
-      "softwareVersion": "0.2.1",
+      "softwareVersion": "0.3.0",
       "url": "https://www.yorozusolutions.com/apps/komonjo-daro/",
       "downloadUrl": "https://github.com/hidetako/Komonjo-Daro/releases/latest/download/Komonjo-Daro-Setup.exe",
       "codeRepository": "https://github.com/hidetako/Komonjo-Daro",
       "license": "https://opensource.org/licenses/MIT",
-      "softwareRequirements": "現代語訳・注釈には Anthropic API キーが必要（OCR のみなら不要）",
+      "softwareRequirements": "現代語訳・注釈には Anthropic または OpenAI の API キーが必要（OCR のみなら不要）",
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "JPY" },
-      "description": "くずし字の古典籍を翻刻して現代語で読む Windows アプリ。NDL古典籍OCR-Lite によるオフライン OCR と、Claude による校訂・現代語訳・注釈。",
+      "description": "くずし字の古典籍を翻刻して現代語で読む Windows アプリ。NDL古典籍OCR-Lite によるオフライン OCR と、Claude または GPT による校訂・現代語訳・注釈。",
       "image": "https://raw.githubusercontent.com/hidetako/Komonjo-Daro/main/docs/images/icon-1024.png",
       "screenshot": "https://raw.githubusercontent.com/hidetako/Komonjo-Daro/main/docs/images/komonjo-01-layout-h.png",
       "author": { "@id": "https://www.yorozusolutions.com/#org" },
@@ -98,7 +98,7 @@
       <p class="app-label">読む・訳す道具</p>
       <h1 class="serif">Komonjo-Daro</h1>
       <p class="detail-lead"><span class="phrase">くずし字を起こし、</span><span class="phrase">現代語で読む。</span></p>
-      <p class="detail-meta">Windows 10／11（64bit）・v0.2.1・アプリ本体は無料・オープンソース（MIT）・OCR はオフライン・現代語訳は利用者自身の Anthropic API キーで動作</p>
+      <p class="detail-meta">Windows 10／11（64bit）・v0.3.0・アプリ本体は無料・オープンソース（MIT）・OCR はオフライン・現代語訳は利用者自身の API キー（Anthropic／OpenAI）で動作</p>
       <p class="app-links">
         <a class="btn btn-blue" href="https://github.com/hidetako/Komonjo-Daro/releases/latest/download/Komonjo-Daro-Setup.exe" target="_blank" rel="noopener noreferrer">ダウンロード（Windows）↓</a>
         <a class="btn btn-ink" href="https://github.com/hidetako/Komonjo-Daro" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
@@ -111,7 +111,7 @@
     <div class="container">
       <p class="apps-group-label">Komonjo-Daro — 古典籍のページを、読める文章に</p>
       <div class="bk-intro">
-        <p>Komonjo-Daro は、江戸期以前の和古書・写本・漢籍のページ画像を読み込み、くずし字を翻刻して現代語訳と注釈を付ける Windows アプリです。仕組みは二段構えです。文字を起こす OCR はパソコンの中だけで動き、通信しません。起こした翻刻を画像と見比べて誤読を直し、現代語訳・語注・要約を付ける部分は Claude（Anthropic）が担当します。</p>
+        <p>Komonjo-Daro は、江戸期以前の和古書・写本・漢籍のページ画像を読み込み、くずし字を翻刻して現代語訳と注釈を付ける Windows アプリです。仕組みは二段構えです。文字を起こす OCR はパソコンの中だけで動き、通信しません。起こした翻刻を画像と見比べて誤読を直し、現代語訳・語注・要約を付ける部分は、設定で選んだ Claude（Anthropic）または GPT（OpenAI）が担当します。</p>
         <p>読む画面は、左に古文書・右に読み取り（左右）と、上に古文書・下に読み取り（上下）の 2 つのレイアウトを切り替えられます。翻刻は縦書きにもでき、画像は拡大して字形を確かめられます。</p>
       </div>
 
@@ -133,7 +133,7 @@
       <p class="apps-group-label sub">できること</p>
       <ul class="bk-list">
         <li><strong>翻刻</strong>　jpg・png・tif・jp2・bmp の画像から、行ごとにくずし字をテキスト化。読み順も整えます。</li>
-        <li><strong>校訂</strong>　Claude が画像と翻刻を見比べ、誤読を直します。直した箇所は「行・OCR・校訂・根拠」の表で確認できます。</li>
+        <li><strong>校訂</strong>　AI が画像と翻刻を見比べ、誤読を直します。直した箇所は「行・OCR・校訂・根拠」の表で確認できます。</li>
         <li><strong>現代語訳・注釈・要約</strong>　人名・地名・語彙・典拠の語注と、2〜3 文の要約、推定時代。</li>
         <li><strong>不確実な箇所の明示</strong>　判読できない字は ■、推定を含む字は〔 〕。自信のない箇所は別に列挙し、確実なことのように書きません。</li>
         <li><strong>手直しして再実行</strong>　OCR の結果を自分で直してから送り直せます。</li>
@@ -152,7 +152,7 @@
     <div class="container">
       <p class="apps-group-label">ダウンロード（無料）</p>
       <div class="bk-intro">
-        <p>最新版 0.2.1 を配布ページから入手できます。インストール後、右上の「設定」で Anthropic の API キーを入力すると現代語訳が使えます。OCR だけならキーは不要です。</p>
+        <p>最新版 0.3.0 を配布ページから入手できます。インストール後、右上の「設定」で Anthropic または OpenAI の API キーを入力すると現代語訳が使えます。各社の現行モデルから選べます。OCR だけならキーは不要です。</p>
       </div>
       <p class="app-links">
         <a class="btn btn-blue" href="https://github.com/hidetako/Komonjo-Daro/releases/latest/download/Komonjo-Daro-Setup.exe" target="_blank" rel="noopener noreferrer">ダウンロード（Windows）↓</a>
@@ -160,7 +160,7 @@
       </p>
       <div class="notice">
         <p><strong>初回起動時の警告表示について</strong><br>初回起動時に「Windows によって PC が保護されました」と表示されることがあります。「詳細情報」→「実行」で続行できます。配布数が少ないソフトで出る表示で、中身はすべて公開されています。</p>
-        <p><strong>API の費用について</strong><br>現代語訳・注釈は、ご自身で取得した Anthropic の API キーで動き、その利用料はご本人に請求されます。1 ページあたりの目安は数円〜数十円（画像を同送するかどうかとページの文字量で変わります）。画像を送らない設定にすると安くなります。</p>
+        <p><strong>API の費用について</strong><br>現代語訳・注釈は、ご自身で取得した Anthropic または OpenAI の API キーで動き、その利用料はご本人に請求されます。1 ページあたりの目安は数円〜数十円（画像を同送するかどうかとページの文字量で変わります）。画像を送らない設定にすると安くなります。</p>
         <p><strong>向いている資料・向かない資料</strong><br>OCR の学習データは版本（木版印刷）と整った写本が中心です。手書きの書状・証文・日記などの近世文書は精度が大きく落ちます。</p>
       </div>
     </div>
@@ -174,7 +174,7 @@
         <div class="fold-body">
           <ul class="bk-list">
             <li><strong>OCR</strong>　国立国会図書館の <a href="https://github.com/ndl-lab/ndlkotenocr-lite" target="_blank" rel="noopener noreferrer">NDL古典籍OCR-Lite</a>（CC BY 4.0）を同梱。レイアウト認識、文字列認識、読み順整序の 3 段で、GPU なしの CPU で動きます。1 ページ数秒〜数十秒。</li>
-            <li><strong>校訂・現代語訳</strong>　Claude（既定は claude-opus-5-5。設定で変更可）に、縮小した資料画像と翻刻を渡し、決まった形式（校訂翻刻・修正一覧・現代語訳・注釈・不確実箇所・要約・推定時代）で受け取ります。</li>
+            <li><strong>校訂・現代語訳</strong>　Claude（既定 claude-opus-5-5）または GPT（既定 gpt-6.1-sol）に、縮小した資料画像と翻刻を渡し、決まった形式（校訂翻刻・修正一覧・現代語訳・注釈・不確実箇所・要約・推定時代）で受け取ります。</li>
             <li><strong>画面</strong>　パソコンの中で小さな Web サーバーが動き、Edge または Chrome のアプリウィンドウで表示します。外からは接続できません。</li>
           </ul>
         </div>
@@ -183,7 +183,7 @@
       <details class="fold">
         <summary>動作要件</summary>
         <div class="fold-body">
-          <p class="bk-note">Windows 10／11（64bit）。追加のインストールは不要です。現代語訳には Anthropic API キーとインターネット接続が必要です。NVIDIA GPU があれば OCR を速くできますが、必須ではありません。</p>
+          <p class="bk-note">Windows 10／11（64bit）。追加のインストールは不要です。現代語訳には Anthropic または OpenAI の API キーとインターネット接続が必要です。NVIDIA GPU があれば OCR を速くできますが、必須ではありません。</p>
         </div>
       </details>
 
@@ -192,7 +192,7 @@
         <div class="fold-body">
           <p class="bk-note">利用状況の収集や外部へのデータ送信は行いません。通信が発生するのは次の 2 つだけです。</p>
           <ul class="bk-list">
-            <li>現代語訳・注釈の作成：Anthropic API（翻刻テキストと、設定で有効なら縮小した資料画像を送信）</li>
+            <li>現代語訳・注釈の作成：Anthropic API または OpenAI API（設定で選んだ方。翻刻テキストと、設定で有効なら縮小した資料画像を送信）</li>
             <li>起動時の更新確認と更新：GitHub</li>
           </ul>
           <p class="bk-note">OCR はオフラインで完結します。API キーはパソコンの中の設定ファイルにのみ保存されます。</p>
@@ -224,13 +224,13 @@
       <p class="apps-group-label">よくある質問</p>
       <dl class="faq">
         <dt>料金はかかりますか？</dt>
-        <dd>アプリ本体は無料です。現代語訳・注釈に使う Claude の API 利用料は、ご自身の Anthropic アカウントに請求されます。OCR だけなら費用も通信も発生しません。</dd>
+        <dd>アプリ本体は無料です。現代語訳・注釈に使う API 利用料は、ご自身の Anthropic または OpenAI のアカウントに請求されます。OCR だけなら費用も通信も発生しません。</dd>
         <dt>翻刻は正確ですか？</dt>
-        <dd>版本では高い精度が出ますが、誤読はあります。Claude が画像と見比べて直した箇所は根拠つきで一覧になり、自信のない箇所は「不確実」として別に示します。最終的な判断は原本の画像で確かめてください。</dd>
+        <dd>版本では高い精度が出ますが、誤読はあります。AI が画像と見比べて直した箇所は根拠つきで一覧になり、自信のない箇所は「不確実」として別に示します。最終的な判断は原本の画像で確かめてください。</dd>
         <dt>手書きの古文書も読めますか？</dt>
         <dd>書状・証文・日記のような手書き文書は、OCR の学習データに少ないため精度が落ちます。版本・整った写本向けとお考えください。</dd>
         <dt>画像は外部に送られますか？</dt>
-        <dd>OCR はパソコンの中で完結します。現代語訳を作るときだけ、設定で有効なら縮小した画像と翻刻を Anthropic API に送ります。画像を送らない設定にもできます。</dd>
+        <dd>OCR はパソコンの中で完結します。現代語訳を作るときだけ、設定で有効なら縮小した画像と翻刻を選んだ社の API に送ります。画像を送らない設定にもできます。</dd>
         <dt>データはどこに保存されますか？</dt>
         <dd>既定で「ドキュメント\Komonjo-Daro」。設定画面で別のフォルダに変更でき、既存データも一緒に移せます。</dd>
       </dl>

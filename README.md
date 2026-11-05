@@ -3,7 +3,7 @@
 古典籍（和古書・版本・写本）の画像を読み込み、
 
 1. **翻刻**: NDL古典籍OCR-Lite（国立国会図書館, CC BY 4.0）でくずし字をテキスト化（ローカル・CPUで動作）
-2. **校訂・現代語訳・注釈**: Claude API に画像と翻刻を渡し、構造化JSONで受け取る
+2. **校訂・現代語訳・注釈**: Claude（Anthropic）または GPT（OpenAI）に画像と翻刻を渡し、構造化JSONで受け取る。設定画面でプロバイダとモデルを選択
 
 という2段構成の自分用ツール。Windows 用インストーラー（自動アップデート付き）、開発用の Flask 起動、CLI の3通りで使える。
 
@@ -34,7 +34,7 @@ Komonjo-Daro/
 1. [Releases](https://github.com/hidetako/Komonjo-Daro/releases/latest) から `Komonjo-Daro-Setup.exe` をダウンロードして実行（管理者権限不要）。
    HP に貼る固定リンク: `https://github.com/hidetako/Komonjo-Daro/releases/latest/download/Komonjo-Daro-Setup.exe`
 2. 起動すると Edge/Chrome のアプリウィンドウが開く。タスクトレイのアイコンから「開く」「終了」。
-3. 右上「設定」で Claude の API キーを入力（「キーを確認」で有効性チェック）。保存フォルダもここで変更できる。
+3. 右上「設定」で使う AI（Anthropic / OpenAI）を選び、API キーを入力（「キーを確認」で有効性チェック、「一覧を取得」で各社の現行モデルから選択）。保存フォルダもここで変更できる。
 4. 新しいバージョンが出ると起動時に通知。「今すぐ更新」でダウンロードとサイレントインストールが走り、自動で再起動する。
 
 設定は `%APPDATA%\Komonjo-Daro\config.json`、データは既定で `ドキュメント\Komonjo-Daro\jobs\<ID>\` に保存。
@@ -43,8 +43,8 @@ Komonjo-Daro/
 
 ```bash
 # kobun/__init__.py の __version__ を上げてコミットしてから
-git tag v0.2.1
-git push origin v0.2.1
+git tag v0.3.0
+git push origin v0.3.0
 ```
 GitHub Actions（`.github/workflows/release.yml`）が Windows でビルドし、Release に `Komonjo-Daro-Setup.exe` を添付する。
 タグとソースのバージョンが違うとビルドは失敗する。ローカルで作るなら `packaging\build.ps1`（Inno Setup 6 が必要）。
@@ -135,12 +135,13 @@ python -m kobun.pipeline 画像.jpg --no-image        # Claude に画像を送�
 python -m kobun.pipeline 画像.jpg --context "竹取物語 上 江戸前期刊"
 ```
 
-## Claude 側の設計
+## AI 側の設計
 
-- モデルは既定 `claude-opus-5-5`（`.env` の `KOBUN_MODEL` で変更可）。思考は常時オン、深さは `KOBUN_EFFORT`（既定 high）。
+- プロバイダは Anthropic（既定 `claude-opus-5-5`）と OpenAI（既定 `gpt-6.1-sol`）。`kobun/llm.py` が両者を同じ呼び出しに揃える。思考の深さは共通の low〜max で、OpenAI は各モデルが受け付ける範囲（GPT-6 系は max まで、GPT-5.5 系は xhigh まで）に丸める。
+- モデル一覧は設定画面の「一覧を取得」で各社 API から取る。候補リスト（`CURATED`）は取得できないときの既定。
 - 出力は JSON スキーマで固定（`kobun/annotate.py` の `OUTPUT_SCHEMA`）。
   `honkoku`（校訂翻刻）/ `corrections`（OCRからの修正と根拠）/ `gendaigo` / `annotations` / `uncertain`（不確実な箇所）/ `summary` / `era_guess`
-- 画像を同送すると、OCR誤認識を画像で確認して直してくれる。費用を抑えたいときは画面のチェックを外す。
+- 画像を同送すると、OCR誤認識を画像で確認して直してくれる。費用を抑えたいときは画面のチェックを外す。OpenAI は Responses API の構造化出力（strict）、Anthropic は output_config の JSON スキーマで、同じスキーマを使う。
 - 判読できない字は「■」、推定は〔 〕で囲むようシステムプロンプトで指示。不確実なものは `uncertain` に必ず列挙させる。
 
 ## 精度についての注意

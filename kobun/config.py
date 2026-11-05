@@ -18,8 +18,11 @@ ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))  #
 IS_FROZEN = getattr(sys, "frozen", False)
 
 DEFAULTS = {
-    "api_key": "",
-    "model": "claude-opus-5-5",
+    "provider": "anthropic",          # anthropic | openai
+    "api_key": "",                    # Anthropic
+    "openai_api_key": "",
+    "model": "claude-opus-5-5",       # Anthropic のモデル（互換のため名前は model のまま）
+    "openai_model": "gpt-6.1-sol",
     "effort": "high",
     "device": "cpu",
     "data_dir": "",
@@ -66,7 +69,18 @@ def load() -> dict:
     # 環境変数・.env はフォールバック（開発時用）
     if not cfg.get("api_key") and os.environ.get("ANTHROPIC_API_KEY"):
         cfg["api_key"] = os.environ["ANTHROPIC_API_KEY"]
+    if not cfg.get("openai_api_key") and os.environ.get("OPENAI_API_KEY"):
+        cfg["openai_api_key"] = os.environ["OPENAI_API_KEY"]
+    if cfg.get("provider") not in ("anthropic", "openai"):
+        cfg["provider"] = "anthropic"
     return cfg
+
+
+def active(cfg: dict) -> tuple[str, str, str]:
+    """(provider, model, api_key) を返す。"""
+    if cfg["provider"] == "openai":
+        return "openai", cfg["openai_model"], cfg["openai_api_key"]
+    return "anthropic", cfg["model"], cfg["api_key"]
 
 
 def save(cfg: dict) -> None:
