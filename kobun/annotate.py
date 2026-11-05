@@ -29,6 +29,15 @@ OCRは誤認識を含みます。画像がある場合は必ず画像を一次�
 出力は指定されたJSONスキーマに従ってください。各項目の方針:
 - honkoku: 校訂済みの翻刻。原文の行区切りを保ち、仮名・漢字は原文のままにし、濁点・句読点を勝手に補わない。
   判読できない文字は「■」、推定を含む文字は〔 〕で囲む。
+- jibo: 字母付き翻刻。honkoku と同じ行構成で、仮名1字ごとに「字母(かな)」の形で書く。字母とは、その仮名（変体仮名を含む）の
+  もとになった漢字（万葉仮名）のこと。例: 「いまはむかし」→「以(い)万(ま)者(は)武(む)可(か)之(し)」。
+  画像の字形から判定する。現行の平仮名と同形なら標準の字母（い=以 ろ=呂 は=波 に=仁 ほ=保 へ=部 と=止 ち=知 り=利 ぬ=奴 る=留
+  を=遠 わ=和 か=加 よ=与 た=太 れ=礼 そ=曽 つ=川 ね=祢 な=奈 ら=良 む=武 う=宇 ゐ=為 の=乃 お=於 く=久 や=也 ま=末 け=計 ふ=不
+  こ=己 え=衣 て=天 あ=安 さ=左 き=幾 ゆ=由 め=女 み=美 し=之 ゑ=恵 ひ=比 も=毛 せ=世 す=寸）、変体仮名なら実際の字母
+  （例: は=者/八 か=可/閑 し=志 に=尓 こ=古 た=多 と=登 り=里 な=那 の=能 を=越 つ=徒/津 ま=満 す=春/須 さ=佐 き=起/支 て=帝
+  も=裳 ゐ=井 え=江 れ=連 よ=餘 ら=羅 ゆ=遊 や=屋 わ=王 ね=年 ほ=本 へ=遍 ひ=飛 ふ=婦 め=免 み=三 せ=勢 そ=所 る=流 ろ=路 く=具 け=遣）
+  を当てる。漢字はそのまま書く。踊り字「ゝ」「〳〵」もそのまま。字母に自信がなければ「可?(か)」のように ? を付ける。
+  画像が無い場合は標準の字母で埋め、その旨を uncertain に書く。
 - corrections: OCRから変更した箇所。根拠を短く書く。画像で確認できなかった変更はしない。
 - gendaigo: 平易で正確な現代語訳。意訳しすぎず、省略された主語は〔 〕で補う。
 - annotations: 人名・地名・官職・語彙・典拠・年号など、読解に必要な注。確実でない説明は「推定」と明記する。
@@ -41,6 +50,7 @@ OUTPUT_SCHEMA = {
     "type": "object",
     "properties": {
         "honkoku": {"type": "string", "description": "校訂済み翻刻。原文の改行を保持"},
+        "jibo": {"type": "string", "description": "字母付き翻刻。仮名ごとに 字母(かな) の形。行構成は honkoku と同じ"},
         "corrections": {
             "type": "array",
             "items": {
@@ -72,7 +82,7 @@ OUTPUT_SCHEMA = {
         "summary": {"type": "string"},
         "era_guess": {"type": "string"},
     },
-    "required": ["honkoku", "corrections", "gendaigo", "annotations", "uncertain", "summary", "era_guess"],
+    "required": ["honkoku", "jibo", "corrections", "gendaigo", "annotations", "uncertain", "summary", "era_guess"],
     "additionalProperties": False,
 }
 
@@ -89,12 +99,15 @@ class Annotation:
     model: str
     input_tokens: int
     output_tokens: int
+    jibo: str = ""          # v0.5.0 で追加。古い結果には無い
 
     def to_dict(self) -> dict:
         return self.__dict__.copy()
 
     def to_markdown(self) -> str:
         md = ["## 翻刻（校訂済）", "", self.honkoku, "", "## 現代語訳", "", self.gendaigo, ""]
+        if self.jibo:
+            md += ["## 字母付き翻刻（変体仮名のもとの漢字）", "", self.jibo, ""]
         if self.annotations:
             md += ["## 注釈", ""] + [f"- **{a['term']}**: {a['note']}" for a in self.annotations] + [""]
         if self.corrections:

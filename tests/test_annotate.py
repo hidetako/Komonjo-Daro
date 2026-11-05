@@ -25,7 +25,8 @@ def test_build_user_content_with_and_without_image(tmp_path):
 
 def test_annotation_markdown_roundtrip():
     sample = {
-        "honkoku": "いまはむかし", "corrections": [{"line": 1, "ocr": "いま", "fixed": "今", "reason": "画像確認"}],
+        "honkoku": "いまはむかし", "jibo": "以(い)万(ま)者(は)武(む)可(か)之(し)",
+        "corrections": [{"line": 1, "ocr": "いま", "fixed": "今", "reason": "画像確認"}],
         "gendaigo": "今は昔", "annotations": [{"term": "今は昔", "note": "説話の冒頭定型句"}],
         "uncertain": ["2行目末尾"], "summary": "冒頭。", "era_guess": "江戸前期（推定）",
     }
@@ -33,5 +34,8 @@ def test_annotation_markdown_roundtrip():
     assert set(sample) == set(OUTPUT_SCHEMA["required"])
     a = Annotation(**sample, model="test", input_tokens=1, output_tokens=2)
     md = a.to_markdown()
-    assert "## 現代語訳" in md and "今は昔" in md and "説話の冒頭定型句" in md
+    assert "## 現代語訳" in md and "今は昔" in md and "説話の冒頭定型句" in md and "者(は)" in md
+    # 旧データ（jibo なし）も読める
+    old = {k: v for k, v in sample.items() if k != "jibo"}
+    assert Annotation(**old, model="t", input_tokens=1, output_tokens=1).jibo == ""
     json.dumps(a.to_dict(), ensure_ascii=False)

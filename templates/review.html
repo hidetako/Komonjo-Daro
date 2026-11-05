@@ -65,6 +65,16 @@
     {% if a %}
     <div class="tab" id="tab-gendaigo">
       <pre class="text" style="font-size:16px">{{ a.gendaigo }}</pre>
+      {% if a.jibo %}
+      <div class="toolbar" style="margin-top:22px; border-top:1px solid var(--line); padding-top:12px">
+        <span class="sub">字母付き翻刻　各かなの元になった漢字（万葉仮名・変体仮名の字母）を「字母(かな)」で示す。? は字母の判定に自信がない箇所</span>
+        <span style="flex:1"></span>
+        <button type="button" class="secondary" id="jibo-vtoggle">縦書き</button>
+      </div>
+      <pre id="jibo" class="text jibo">{{ a.jibo }}</pre>
+      {% else %}
+      <p class="sub" style="margin-top:22px">字母付き翻刻は v0.5.0 以降の結果に付きます。「再実行」タブから作り直すと表示されます。</p>
+      {% endif %}
     </div>
     <div class="tab" id="tab-notes">
       {% if a.annotations %}
@@ -145,5 +155,7 @@
   // 縦書き切替
   const vt = document.getElementById('vtoggle'), hk = document.getElementById('hk');
   if (vt) vt.addEventListener('click', () => { hk.classList.toggle('vertical'); vt.classList.toggle('active'); });
+  const jv = document.getElementById('jibo-vtoggle'), jb = document.getElementById('jibo');
+  if (jv) jv.addEventListener('click', () => { jb.classList.toggle('vertical'); jv.classList.toggle('active'); });
 </script>
 {% endblock %}
