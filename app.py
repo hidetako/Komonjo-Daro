@@ -23,7 +23,7 @@ from kobun.updater import UpdateState, download_and_install, exit_app
 
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder=str(config_mod.ROOT / "templates"))  # 固めた版でも templates を確実に見つける
 app.config["MAX_CONTENT_LENGTH"] = 80 * 1024 * 1024
 app.secret_key = os.environ.get("KOBUN_SECRET", "komonjo-daro-local")
 updates = UpdateState()
