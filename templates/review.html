@@ -79,6 +79,16 @@
     <div class="tab" id="tab-notes">
       {% if a.annotations %}
       <div class="vtext"><dl class="notes">{% for n in a.annotations %}<dt>{{ n.term }}</dt><dd>{{ n.note }}</dd>{% endfor %}</dl></div>
+      <details class="tab-note" style="margin-top:10px"><summary class="sub">用語集に追加（次回から表記・読みを揃える）</summary>
+        <table class="lines" style="margin-top:6px">
+        {% for n in a.annotations %}
+          <tr><td>{{ n.term }}</td><td class="sub">{{ n.note[:60] }}</td>
+            <td style="text-align:right; white-space:nowrap"><form method="post" action="{{ url_for('glossary_add') }}" style="display:inline">
+              <input type="hidden" name="term" value="{{ n.term }}"><input type="hidden" name="note" value="{{ n.note }}"><input type="hidden" name="next" value="{{ url_for('review', job_id=job_id) }}">
+              <button type="submit" class="secondary" style="padding:3px 8px; font-size:12px">追加</button></form></td></tr>
+        {% endfor %}
+        </table>
+      </details>
       {% else %}<p class="sub">注釈なし</p>{% endif %}
     </div>
     <div class="tab" id="tab-check">
@@ -102,7 +112,8 @@
 
     <div class="tab" id="tab-edit">
       <form method="post" action="{{ url_for('annotate_job', job_id=job_id) }}" data-busy="Claude が校訂・現代語訳・注釈を作成しています（数十秒）…">
-        <p class="sub" style="margin-top:0">OCR 結果を必要なら手で直してから送信してください。明らかな誤読を直しておくと校訂精度が上がります。</p>
+        <p class="sub" style="margin-top:0">OCR 結果を必要なら手で直してから送信してください。明らかな誤読を直しておくと校訂精度が上がります。
+        {% if job.group %}同じ文書の前ページ（現代語訳済み）の翻刻と注釈語、{% endif %}用語集は設定に従って自動で参考に渡されます。</p>
         <textarea name="honkoku" rows="14">{{ job.edited_honkoku or (job.ocr.text if job.ocr else '') }}</textarea>
         <p><input type="text" name="context" value="{{ job.context }}" placeholder="補足（資料名・巻・刊年など。任意）"></p>
         <p><label><input type="checkbox" name="use_image" {{ 'checked' if send_image }}> 画像も Claude に送って校訂させる（精度↑・費用↑）</label></p>

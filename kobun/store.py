@@ -141,6 +141,47 @@ class Store:
         out.sort(key=lambda j: j.created, reverse=True)
         return out
 
+    # --- 用語集（data_dir/glossary.json） ---
+    @property
+    def glossary_path(self) -> Path:
+        return self.root / "glossary.json"
+
+    def glossary(self) -> list[dict]:
+        if not self.glossary_path.exists():
+            return []
+        try:
+            return json.loads(self.glossary_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
+
+    def glossary_save(self, entries: list[dict]) -> None:
+        self.glossary_path.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def glossary_add(self, term: str, reading: str = "", note: str = "") -> bool:
+        """同じ表記があれば読み・注を更新。追加なら True。"""
+        term, reading, note = term.strip(), reading.strip(), note.strip()
+        if not term:
+            return False
+        entries = self.glossary()
+        for e in entries:
+            if e["term"] == term:
+                e["reading"], e["note"] = reading or e.get("reading", ""), note or e.get("note", "")
+                self.glossary_save(entries)
+                return False
+        entries.append({"id": uuid.uuid4().hex[:8], "term": term, "reading": reading, "note": note, "created": time.time()})
+        self.glossary_save(entries)
+        return True
+
+    def glossary_delete(self, entry_id: str) -> None:
+        self.glossary_save([e for e in self.glossary() if e.get("id") != entry_id])
+
+    def prior_pages(self, job: dict, limit: int = 3) -> list[dict]:
+        """同じ文書で、このページより前の現代語訳済みページ（新しい順に limit 件）。"""
+        if not job.get("group"):
+            return []
+        pages = [j for j in self.list_group(job["group"]) if j.get("annotation") and j.get("page", 0) < job.get("page", 0)]
+        return pages[-limit:]
+
     def move_to(self, new_dir: str | Path) -> int:
         """保存先を変更し、既存ジョブを移動する。移動した件数を返す。"""
         new_root = Path(new_dir)

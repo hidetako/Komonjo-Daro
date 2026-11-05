@@ -124,7 +124,9 @@ def doc_annotate(group):
         flash("現代語訳の対象ページがありません（OCR 未完了、または全ページ訳済み）")
         return redirect(url_for("doc", group=group))
     try:
-        worker.start_annotate(st, [j["id"] for j in pages], group, request.form.get("use_image") == "on")
+        c = cfg()
+        worker.start_annotate(st, [j["id"] for j in pages], group, request.form.get("use_image") == "on",
+                              use_glossary=c["use_glossary"], carry_context=c["carry_context"])
     except RuntimeError as e:
         flash(str(e))
     return redirect(url_for("doc", group=group))
@@ -230,8 +232,11 @@ def annotate_job(job_id):
     context = request.form.get("context", job.get("context", ""))
     use_image = request.form.get("use_image") == "on"
     img = st.media_path(job_id, "preview.jpg") if use_image else None
+    c = cfg()
     try:
-        ann = annotate(text, img, context=context)
+        ann = annotate(text, img, context=context,
+                       glossary=st.glossary() if c["use_glossary"] else None,
+                       prior_pages=st.prior_pages(job) if c["carry_context"] else None)
     except Exception as e:  # noqa: BLE001
         return render_template("error.html", message=f"Claude API 呼び出しに失敗しました: {e}"), 500
     job["edited_honkoku"] = text
@@ -263,6 +268,48 @@ def media(job_id, name):
     return send_file(str(p), max_age=3600)
 
 
+# ---------- 用語集 ----------
+@app.get("/glossary")
+def glossary():
+    return render_template("glossary.html", entries=store().glossary(), c=cfg())
+
+
+@app.post("/glossary/add")
+def glossary_add():
+    st = store()
+    added = st.glossary_add(request.form.get("term", ""), request.form.get("reading", ""), request.form.get("note", ""))
+    flash("追加しました" if added else "同じ表記があったので更新しました（または表記が空）")
+    nxt = request.form.get("next") or url_for("glossary")
+    return redirect(nxt)
+
+
+@app.post("/glossary/<entry_id>/delete")
+def glossary_delete(entry_id):
+    store().glossary_delete(entry_id)
+    return redirect(url_for("glossary"))
+
+
+@app.post("/glossary/import")
+def glossary_import():
+    """1行1項目「表記,読み,注」または「表記（読み）: 注」のテキストをまとめて登録。"""
+    st = store()
+    n = 0
+    for line in request.form.get("bulk", "").splitlines():
+        line = line.strip().replace("，", ",")
+        if not line:
+            continue
+        if "," in line:
+            parts = [x.strip() for x in line.split(",", 2)] + ["", ""]
+            term, reading, note = parts[0], parts[1], parts[2]
+        else:
+            import re
+            m = re.match(r"^(.+?)(?:[（(](.+?)[）)])?\s*(?:[:：]\s*(.*))?$", line)
+            term, reading, note = (m.group(1), m.group(2) or "", m.group(3) or "") if m else (line, "", "")
+        n += int(st.glossary_add(term, reading, note))
+    flash(f"{n} 件を追加しました")
+    return redirect(url_for("glossary"))
+
+
 # ---------- 設定 ----------
 @app.get("/settings")
 def settings():
@@ -290,6 +337,8 @@ def settings_save():
     c["effort"] = request.form.get("effort", c["effort"])
     c["device"] = request.form.get("device", c["device"])
     c["send_image"] = request.form.get("send_image") == "on"
+    c["use_glossary"] = request.form.get("use_glossary") == "on"
+    c["carry_context"] = request.form.get("carry_context") == "on"
     c["auto_check_updates"] = request.form.get("auto_check_updates") == "on"
     new_dir = request.form.get("data_dir", "").strip() or old_dir
     moved = 0

@@ -28,6 +28,8 @@ DEFAULTS = {
     "data_dir": "",
     "send_image": True,
     "auto_check_updates": True,
+    "use_glossary": True,       # 用語集を AI に渡す
+    "carry_context": True,      # 同じ文書の前ページを参考に渡す
 }
 
 

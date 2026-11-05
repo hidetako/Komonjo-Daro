@@ -43,8 +43,8 @@ Komonjo-Daro/
 
 ```bash
 # kobun/__init__.py の __version__ を上げてコミットしてから
-git tag v0.5.0
-git push origin v0.5.0
+git tag v0.6.0
+git push origin v0.6.0
 ```
 GitHub Actions（`.github/workflows/release.yml`）が Windows でビルドし、Release に `Komonjo-Daro-Setup.exe` を添付する。
 タグとソースのバージョンが違うとビルドは失敗する。ローカルで作るなら `packaging\build.ps1`（Inno Setup 6 が必要）。
@@ -117,6 +117,7 @@ Dockerfile 内で NDL-Lite を clone するので vendor の手動取得は不�
 
 - **読み込む**: 画像または PDF をドラッグ＆ドロップ、ファイル選択、または Ctrl+V の貼り付け（PrintScreen / Win+Shift+S で切り取った画面をそのまま）でOCR。PDF は 1 ページ 1 件として登録され、OCR は裏で順に実行（ページ範囲 `1-5, 8, 12-` の指定可）。文書ページで進み具合を見ながら、未訳ページの一括現代語訳と全ページの Markdown 取得ができる。
 - **一覧・検索**: 過去の資料をサムネイル付きで一覧。タイトル・翻刻・現代語訳・注釈を横断検索（空白区切りでAND）。
+- **用語集**: 表記・読み・注を登録すると毎回 AI に渡され、人名・地名の表記が揃う。注釈タブから「用語集に追加」も可。同じ文書（PDF）の前ページの翻刻・注釈語も自動で参考に渡す（設定で切替）。
 - **設定**: APIキー、モデル、思考の深さ、保存フォルダ（「参照…」でフォルダ選択）、OCRデバイス、更新確認。
 
 - **レイアウト切替**（右上）: 「左右」= 左に古文書・右に読み取りと解説、「上下」= 上に古文書・下に読み取りと解説。選択はブラウザに記憶される。

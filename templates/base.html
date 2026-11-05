@@ -96,6 +96,7 @@
   <nav class="nav">
     <a href="{{ url_for('index') }}" class="{{ 'on' if request.endpoint == 'index' }}">読み込む</a>
     <a href="{{ url_for('jobs') }}" class="{{ 'on' if request.endpoint == 'jobs' }}">一覧・検索</a>
+    <a href="{{ url_for('glossary') }}" class="{{ 'on' if request.endpoint == 'glossary' }}">用語集</a>
     <a href="{{ url_for('settings') }}" class="{{ 'on' if request.endpoint == 'settings' }}">設定</a>
   </nav>
   <span class="spacer"></span>

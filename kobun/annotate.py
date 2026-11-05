@@ -130,10 +130,37 @@ def encode_image(image_path: str | Path) -> tuple[str, str]:
     return base64.standard_b64encode(buf.getvalue()).decode("ascii"), "image/jpeg"
 
 
-def build_user_text(ocr_text: str, context: str = "") -> str:
+PRIOR_CHARS = 3000   # 前ページの参考として渡す上限（翻刻＋注釈語）
+
+
+def build_user_text(ocr_text: str, context: str = "", glossary: list[dict] | None = None,
+                    prior_pages: list[dict] | None = None) -> str:
     parts = []
     if context.strip():
         parts.append(f"資料についての補足情報:\n{context.strip()}\n")
+    if glossary:
+        lines = []
+        for g in glossary:
+            line = f"- {g.get('term', '')}"
+            if g.get("reading"):
+                line += f"（{g['reading']}）"
+            if g.get("note"):
+                line += f": {g['note']}"
+            lines.append(line)
+        parts.append("用語集（利用者が確定した表記・読み・注。翻刻・現代語訳・注釈ではこれに従い、同じ語に別の表記を当てない）:\n" + "\n".join(lines) + "\n")
+    if prior_pages:
+        buf, used = [], 0
+        for pg in prior_pages:
+            ann = pg.get("annotation") or {}
+            terms = "、".join(a.get("term", "") for a in ann.get("annotations", []) if a.get("term"))
+            block = f"[p.{pg.get('page')}] 翻刻:\n{ann.get('honkoku', '')}\n注釈語: {terms}\n"
+            if used + len(block) > PRIOR_CHARS:
+                block = block[: max(0, PRIOR_CHARS - used)]
+            buf.append(block)
+            used += len(block)
+            if used >= PRIOR_CHARS:
+                break
+        parts.append("同じ文書の前ページ（確定済み。人名・地名・用語の表記と仮名遣いを揃え、文脈の続きとして読む）:\n" + "\n".join(buf))
     parts.append("OCR翻刻テキスト（誤認識を含む）:\n" + ocr_text.strip())
     parts.append("\n上記を校訂し、現代語訳と注釈を作成してください。")
     return "\n".join(parts)
@@ -151,7 +178,8 @@ def build_user_content(ocr_text: str, image_path: str | Path | None, context: st
 
 def annotate(ocr_text: str, image_path: str | Path | None = None, context: str = "", client=None,
              model: str | None = None, effort: str | None = None, api_key: str | None = None,
-             provider: str | None = None) -> Annotation:
+             provider: str | None = None, glossary: list[dict] | None = None,
+             prior_pages: list[dict] | None = None) -> Annotation:
     """OCRテキストと画像を LLM に送り、構造化された校訂・現代語訳・注釈を返す。
 
     プロバイダ・モデル・キーは 引数 > 設定ファイル（設定画面） > 環境変数 の順で決まる。
@@ -168,6 +196,6 @@ def annotate(ocr_text: str, image_path: str | Path | None = None, context: str =
             f"{llm.PROVIDERS[provider]['label']} の API キーが設定されていません。画面右上の「設定」から入力してください。"
         )
     image = encode_image(image_path) if image_path else None
-    r = llm.call(provider, model, effort, key, SYSTEM_PROMPT, build_user_text(ocr_text, context), image, OUTPUT_SCHEMA, client=client)
+    r = llm.call(provider, model, effort, key, SYSTEM_PROMPT, build_user_text(ocr_text, context, glossary, prior_pages), image, OUTPUT_SCHEMA, client=client)
     data = llm.parse_json(r.text)
     return Annotation(**data, model=r.model, input_tokens=r.input_tokens, output_tokens=r.output_tokens)

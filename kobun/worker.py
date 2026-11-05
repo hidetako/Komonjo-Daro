@@ -59,7 +59,8 @@ def start_ocr(store: Store, job_ids: list[str], group: str, device: str) -> None
     _launch(group, Progress("ocr", group, len(job_ids)), work)
 
 
-def start_annotate(store: Store, job_ids: list[str], group: str, send_image: bool) -> None:
+def start_annotate(store: Store, job_ids: list[str], group: str, send_image: bool,
+                   use_glossary: bool = True, carry_context: bool = True) -> None:
     from .annotate import annotate
 
     def work():
@@ -72,7 +73,9 @@ def start_annotate(store: Store, job_ids: list[str], group: str, send_image: boo
                     raise RuntimeError("OCR 未完了")
                 text = job.get("edited_honkoku") or job["ocr"]["text"]
                 img = store.media_path(jid, "preview.jpg") if send_image else None
-                ann = annotate(text, img, context=job.get("context", ""))
+                ann = annotate(text, img, context=job.get("context", ""),
+                               glossary=store.glossary() if use_glossary else None,
+                               prior_pages=store.prior_pages(job) if carry_context else None)
                 job = store.load(jid)
                 job["annotation"] = ann.to_dict()
                 store.save(jid, job)

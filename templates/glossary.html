@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}用語集 - Komonjo-Daro{% endblock %}
+{% block body %}
+<div class="card">
+  <h2 style="margin-top:0">用語集</h2>
+  <p class="sub">ここに登録した表記・読み・注は、現代語訳・校訂のたびに AI に渡され、同じ語に別の表記を当てないよう働きます。人名・地名・役職・資料特有の語に。
+    {% if not c.use_glossary %}<span class="ng">現在、設定で「用語集を渡す」が無効です。</span>{% endif %}</p>
+  <form method="post" action="{{ url_for('glossary_add') }}" style="display:grid; grid-template-columns: 1fr 1fr 2fr auto; gap:8px; align-items:center">
+    <input type="text" name="term" placeholder="表記（例: 真田昌幸）" required>
+    <input type="text" name="reading" placeholder="読み（例: さなだまさゆき）">
+    <input type="text" name="note" placeholder="注（例: 信濃上田城主。天正年間）">
+    <button type="submit">追加</button>
+  </form>
+</div>
+<div class="card">
+  <table class="lines">
+    <tr><th>表記</th><th>読み</th><th>注</th><th></th></tr>
+    {% for e in entries %}
+    <tr><td><strong>{{ e.term }}</strong></td><td>{{ e.reading }}</td><td>{{ e.note }}</td>
+      <td style="text-align:right"><form method="post" action="{{ url_for('glossary_delete', entry_id=e.id) }}" onsubmit="return confirm('「{{ e.term }}」を削除しますか？')"><button type="submit" class="secondary" style="padding:3px 8px; font-size:12px">削除</button></form></td></tr>
+    {% else %}
+    <tr><td colspan="4" class="sub">まだありません。上の欄から追加するか、各資料の「注釈」タブから「用語集に追加」できます。</td></tr>
+    {% endfor %}
+  </table>
+</div>
+<details class="card">
+  <summary>まとめて登録（1行1項目）</summary>
+  <form method="post" action="{{ url_for('glossary_import') }}">
+    <p class="sub">「表記,読み,注」または「表記（読み）: 注」の形式。例:<br>真田昌幸,さなだまさゆき,信濃上田城主<br>海野（うんの）: 滋野氏の一族</p>
+    <textarea name="bulk" rows="8" placeholder="真田昌幸,さなだまさゆき,信濃上田城主"></textarea>
+    <p><button type="submit">登録</button></p>
+  </form>
+</details>
+{% endblock %}
