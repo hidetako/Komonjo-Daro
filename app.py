@@ -18,6 +18,7 @@ from flask import Flask, abort, flash, jsonify, redirect, render_template, reque
 from kobun import __version__
 from kobun import config as config_mod
 from kobun import jibo as jibo_mod
+from kobun import lines as lines_mod
 from kobun import llm, pdf, worker
 from kobun.ocr_ndl import NdlLiteNotFound, looks_unreliable, run_ocr
 from kobun.store import Store
@@ -309,6 +310,68 @@ def jibo_job(job_id):
         jibo_mod.apply_to_job(st, job_id, cfg())
     except Exception as e:  # noqa: BLE001
         return render_template("error.html", message=f"字母の判定に失敗しました: {e}"), 500
+    return redirect(url_for("review", job_id=job_id))
+
+
+@app.post("/job/<job_id>/lines")
+def save_lines(job_id):
+    """手で切った行枠を保存する（JSON）。テキストは枠が変わっていなければ残す。"""
+    st = store()
+    try:
+        job = st.load(job_id)
+    except KeyError:
+        abort(404)
+    data = request.get_json(silent=True) or {}
+    ocr = job.get("ocr") or {"text": "", "lines": [], "width": 0, "height": 0, "viz_path": None}
+    if not ocr.get("width"):
+        from PIL import Image, ImageOps
+        with Image.open(st.media_path(job_id, job["original"])) as im:
+            im = ImageOps.exif_transpose(im)
+            ocr["width"], ocr["height"] = im.width, im.height
+    boxes = lines_mod.normalize_boxes(data.get("lines", []), ocr["width"], ocr["height"])
+    ocr["lines"] = boxes
+    ocr["text"] = "\n".join(b["text"] for b in boxes)
+    job["ocr"] = ocr
+    job["manual_lines"] = True
+    job.pop("edited_honkoku", None)
+    st.save(job_id, job)
+    return jsonify({"ok": True, "count": len(boxes)})
+
+
+@app.post("/job/<job_id>/readlines")
+def read_lines(job_id):
+    """確定した行枠ごとに読む。engine = ai | ocr | both（AI に OCR 候補を添える）。"""
+    st = store()
+    try:
+        job = st.load(job_id)
+    except KeyError:
+        abort(404)
+    boxes = (job.get("ocr") or {}).get("lines") or []
+    if not boxes:
+        flash("行の枠がありません。先に「行を手で切る」で枠を作ってください")
+        return redirect(url_for("review", job_id=job_id))
+    engine = request.form.get("engine", "ai")
+    c = cfg()
+    img = st.media_path(job_id, job["original"])
+    try:
+        hints = lines_mod.ocr_read_boxes(img, boxes, c["device"]) if engine in ("ocr", "both") else None
+        if engine == "ocr":
+            texts = hints or []
+        else:
+            provider, model, key = config_mod.active(c)
+            if not key:
+                flash(f"{llm.PROVIDERS[provider]['label']} の API キーが未設定です（設定から入力）")
+                return redirect(url_for("review", job_id=job_id))
+            texts, _, _ = lines_mod.ai_read_boxes(img, boxes, provider, model, c.get("effort", "high"), key, hints=hints)
+    except Exception as e:  # noqa: BLE001
+        return render_template("error.html", message=f"行の読み取りに失敗しました: {e}"), 500
+    for b, t in zip(boxes, texts):
+        b["text"] = t
+    job["ocr"]["lines"] = boxes
+    job["ocr"]["text"] = "\n".join(b["text"] for b in boxes)
+    job.pop("edited_honkoku", None)
+    st.save(job_id, job)
+    flash(f"{len(boxes)} 行を読みました（{ {'ai': 'AI', 'ocr': 'OCR', 'both': 'AI＋OCR候補'}.get(engine, engine) }）。内容を確認して「現代語訳を作成」へ")
     return redirect(url_for("review", job_id=job_id))
 
 
