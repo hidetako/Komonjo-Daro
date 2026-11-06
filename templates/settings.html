@@ -72,6 +72,8 @@
   <div class="form-row">
     <label class="k">デバイス</label>
     <select name="device"><option value="cpu" {{ 'selected' if c.device == 'cpu' }}>cpu（標準）</option><option value="cuda" {{ 'selected' if c.device == 'cuda' }}>cuda（onnxruntime-gpu 導入時のみ）</option></select>
+    <label class="k">行の結合</label>
+    <label><input type="checkbox" name="merge_lines" {{ 'checked' if c.merge_lines }}> 同じ列で縦に分断された断片を 1 行につなぎ、つないだ範囲で文字認識をやり直す（散らし書き・連綿の切れ目対策。版本で行が混ざる場合はオフ）</label>
   </div>
 </div>
 <div class="card">

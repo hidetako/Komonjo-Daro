@@ -33,7 +33,7 @@ def running(group: str) -> bool:
     return bool(p and not p.finished)
 
 
-def start_ocr(store: Store, job_ids: list[str], group: str, device: str) -> None:
+def start_ocr(store: Store, job_ids: list[str], group: str, device: str, merge_lines: bool = True) -> None:
     from .ocr_ndl import run_ocr
 
     def work():
@@ -42,7 +42,7 @@ def start_ocr(store: Store, job_ids: list[str], group: str, device: str) -> None
             try:
                 job = store.load(jid)
                 p.current = job.get("title", jid)
-                result = run_ocr(store.media_path(jid, job["original"]), device=device)
+                result = run_ocr(store.media_path(jid, job["original"]), device=device, merge_lines=merge_lines)
                 job = store.load(jid)
                 job["ocr"] = result.to_dict()
                 job.pop("error", None)

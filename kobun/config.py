@@ -31,6 +31,7 @@ DEFAULTS = {
     "use_glossary": True,       # 用語集を AI に渡す
     "carry_context": True,      # 同じ文書の前ページを参考に渡す
     "jibo_pass": True,          # 現代語訳のあとに字母判定（行切り出し）を自動で行う
+    "merge_lines": True,        # 分断された行を結合する（散らし書き・連綿の切れ目）
 }
 
 

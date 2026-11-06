@@ -37,7 +37,8 @@
     </div>
     <p class="sub" style="margin:6px 0 0; display:flex; gap:10px; align-items:center">{% if job.ocr %}{{ job.ocr.lines|length }} 行を認識{% else %}OCR {{ '失敗: ' + job.error if job.error else '待ち' }}{% endif %}{% if job.ocr %}（{{ job.ocr.width }}×{{ job.ocr.height }}px）{% endif %}　{{ job.original_name }}
       <span style="flex:1"></span>
-      <form method="post" action="{{ url_for('delete_job', job_id=job_id) }}" onsubmit="return confirm('この資料と結果を削除しますか？')"><button type="submit" class="secondary" style="padding:3px 8px; font-size:12px">削除</button></form></p>
+      <form method="post" action="{{ url_for('reocr_job', job_id=job_id) }}" data-busy="OCR をやり直しています…" style="display:inline"><button type="submit" class="secondary" style="padding:3px 8px; font-size:12px" title="設定（行の結合など）を変えたあと、同じ画像で OCR をやり直す">OCR やり直し</button></form>
+      <form method="post" action="{{ url_for('delete_job', job_id=job_id) }}" onsubmit="return confirm('この資料と結果を削除しますか？')" style="display:inline"><button type="submit" class="secondary" style="padding:3px 8px; font-size:12px">削除</button></form></p>
   </section>
 
   <!-- ===== 読み取り・解説 ===== -->

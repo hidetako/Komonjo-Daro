@@ -163,6 +163,66 @@ def merge_segment_results(parts: list[tuple[tuple[int, int, int, int], OcrResult
     return OcrResult(text="\n".join(l.text for l in lines), lines=lines, width=width, height=height)
 
 
+# ---- 分断された行の結合（散らし書き・連綿の切れ目で 1 行が複数に割れたとき） ----
+MERGE_ALIGN = 0.5   # 同じ列とみなす中心のずれ（行幅比）
+MERGE_GAP = 1.5     # つなぐ最大の隙間（行幅比）
+
+
+def group_broken_lines(lines: list[OcrLine]) -> list[list[OcrLine]]:
+    """縦書き前提で、同じ列に縦に並ぶ断片をグループにする。戻り値は読み順（右→左、列内は上→下）。"""
+    vert = [l for l in lines if l.h > l.w]
+    if len(vert) * 2 < max(1, len(lines)):
+        return [[l] for l in lines]          # 横書き主体なら触らない
+    widths = sorted(l.w for l in vert)
+    med_w = widths[len(widths) // 2] if widths else 1
+    rest = sorted(lines, key=lambda l: -(l.x + l.w / 2))
+    groups: list[list[OcrLine]] = []
+    for l in rest:
+        cx = l.x + l.w / 2
+        placed = False
+        if l.h > l.w:
+            for g in groups:
+                gl = g[-1]
+                if gl.h <= gl.w:
+                    continue
+                gcx = gl.x + gl.w / 2
+                if abs(cx - gcx) <= MERGE_ALIGN * med_w:
+                    # 縦の隙間（どちらが上でも）
+                    top, bot = (gl, l) if gl.y <= l.y else (l, gl)
+                    gap = bot.y - (top.y + top.h)
+                    if gap <= MERGE_GAP * med_w:
+                        g.append(l)
+                        g.sort(key=lambda z: z.y)
+                        placed = True
+                        break
+        if not placed:
+            groups.append([l])
+    groups.sort(key=lambda g: -max(z.x + z.w / 2 for z in g))
+    return groups
+
+
+def merge_groups(groups: list[list[OcrLine]], recognize=None) -> list[OcrLine]:
+    """グループごとに 1 行にまとめる。recognize(x, y, w, h) -> str があれば結合範囲を読み直す。"""
+    out: list[OcrLine] = []
+    for i, g in enumerate(groups):
+        if len(g) == 1:
+            l = g[0]
+            out.append(OcrLine(i, l.text, l.confidence, l.x, l.y, l.w, l.h))
+            continue
+        x0, y0 = min(z.x for z in g), min(z.y for z in g)
+        x1, y1 = max(z.x + z.w for z in g), max(z.y + z.h for z in g)
+        text = None
+        if recognize:
+            try:
+                text = recognize(x0, y0, x1 - x0, y1 - y0)
+            except Exception:  # noqa: BLE001
+                text = None
+        if not text:
+            text = "".join(z.text for z in g)
+        out.append(OcrLine(i, text, min(z.confidence for z in g), x0, y0, x1 - x0, y1 - y0))
+    return out
+
+
 def _build_args(src: Path, image: Path, out: Path, device: str, viz: bool) -> Namespace:
     return Namespace(
         sourcedir=None, sourceimg=str(image), output=str(out), viz=viz,
@@ -210,7 +270,7 @@ def _run_subprocess(src: Path, image: Path, out: Path, device: str, viz: bool, t
 
 
 def run_ocr(image_path: str | Path, device: str = "cpu", viz: bool = False, timeout: int = 900,
-            split: bool | None = None) -> OcrResult:
+            split: bool | None = None, merge_lines: bool = True) -> OcrResult:
     """1枚の画像を OCR する。device は 'cpu' か 'cuda'（onnxruntime-gpu 必須）。
 
     split: None なら縦横比で自動判定、True で強制分割、False で分割しない。
@@ -240,16 +300,41 @@ def run_ocr(image_path: str | Path, device: str = "cpu", viz: bool = False, time
                 keep = wd / f"viz_{job.name}.{ext}"
                 shutil.move(str(viz_file), keep)
                 result.viz_path = str(keep)
-            return result
-        # 横長・縦長: 区画ごとに検出して結合（検出器は 1280px 四方に縮めるため、そのままだと行が潰れる）
-        parts = []
-        for i, (x0, y0, x1, y1) in enumerate(segs):
-            seg_img = job / f"seg{i}.jpg"
-            im.crop((x0, y0, x1, y1)).save(seg_img, quality=95)
-            parts.append(((x0, y0, x1, y1), _run_one(src, seg_img, job / f"out{i}", device, False, timeout)))
-        return merge_segment_results(parts, im.width, im.height)
+        else:
+            # 横長・縦長: 区画ごとに検出して結合（検出器は 1280px 四方に縮めるため、そのままだと行が潰れる）
+            parts = []
+            for i, (x0, y0, x1, y1) in enumerate(segs):
+                seg_img = job / f"seg{i}.jpg"
+                im.crop((x0, y0, x1, y1)).save(seg_img, quality=95)
+                parts.append(((x0, y0, x1, y1), _run_one(src, seg_img, job / f"out{i}", device, False, timeout)))
+            result = merge_segment_results(parts, im.width, im.height)
+        if merge_lines:
+            result = _merge_broken(result, im, src, device)
+        return result
     finally:
         shutil.rmtree(job, ignore_errors=True)
+
+
+def _merge_broken(result: OcrResult, im, src: Path, device: str) -> OcrResult:
+    """分断された行を結合し、可能なら結合範囲を認識器で読み直す。"""
+    groups = group_broken_lines(result.lines)
+    if all(len(g) == 1 for g in groups):
+        return result
+    recognize = None
+    if os.environ.get("KOBUN_OCR_MODE", "inprocess") != "subprocess" or IS_FROZEN:
+        try:
+            import numpy as np
+            mod = _load_ndl_module(src)
+            rec = mod.get_recognizer(_build_args(src, Path("x"), Path("y"), device, False))
+            arr = np.array(im)
+
+            def recognize(x, y, w, h):
+                return rec.read(arr[y:y + h, x:x + w, :])
+        except Exception:  # noqa: BLE001
+            recognize = None
+    with _LOCK:
+        lines = merge_groups(groups, recognize)
+    return OcrResult(text="\n".join(l.text for l in lines), lines=lines, width=result.width, height=result.height, viz_path=result.viz_path)
 
 
 def _run_one(src: Path, image: Path, out: Path, device: str, viz: bool, timeout: int) -> OcrResult:

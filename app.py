@@ -74,7 +74,7 @@ def ocr():
     try:
         job_id = st.create(tmp, file.filename, title=request.form.get("title", ""), context=request.form.get("context", ""))
         job = st.load(job_id)
-        result = run_ocr(st.media_path(job_id, job["original"]), device=c["device"])
+        result = run_ocr(st.media_path(job_id, job["original"]), device=c["device"], merge_lines=c.get("merge_lines", True))
     except NdlLiteNotFound as e:
         return render_template("error.html", message=str(e)), 500
     except Exception as e:  # noqa: BLE001
@@ -104,7 +104,7 @@ def ocr_pdf(tmp: Path, filename: str, st: Store, c: dict):
     finally:
         tmp.unlink(missing_ok=True)
     try:
-        worker.start_ocr(st, job_ids, group, c["device"])
+        worker.start_ocr(st, job_ids, group, c["device"], merge_lines=c.get("merge_lines", True))
     except Exception as e:  # noqa: BLE001
         return render_template("error.html", message=str(e)), 500
     return redirect(url_for("doc", group=group))
@@ -145,7 +145,7 @@ def doc_retry_ocr(group):
     pages = [j["id"] for j in st.list_group(group) if "ocr" not in j]
     if pages:
         try:
-            worker.start_ocr(st, pages, group, cfg()["device"])
+            worker.start_ocr(st, pages, group, cfg()["device"], merge_lines=cfg().get("merge_lines", True))
         except RuntimeError as e:
             flash(str(e))
     return redirect(url_for("doc", group=group))
@@ -209,6 +209,26 @@ def review(job_id):
         if 0 <= i < len(ids) - 1:
             next_id = ids[i + 1]
     return render_template("review.html", job_id=job_id, job=job, send_image=cfg()["send_image"], prev_id=prev_id, next_id=next_id)
+
+
+@app.post("/job/<job_id>/reocr")
+def reocr_job(job_id):
+    """同じ画像で OCR をやり直す（行結合などの設定を変えたあと用）。現代語訳は残す。"""
+    st = store()
+    try:
+        job = st.load(job_id)
+    except KeyError:
+        abort(404)
+    c = cfg()
+    try:
+        result = run_ocr(st.media_path(job_id, job["original"]), device=c["device"], merge_lines=c.get("merge_lines", True))
+    except Exception as e:  # noqa: BLE001
+        return render_template("error.html", message=f"OCRに失敗しました: {e}"), 500
+    job["ocr"] = result.to_dict()
+    job.pop("edited_honkoku", None)
+    st.save(job_id, job)
+    flash(f"OCR をやり直しました（{len(result.lines)} 行）")
+    return redirect(url_for("review", job_id=job_id))
 
 
 @app.post("/job/<job_id>/title")
@@ -372,6 +392,7 @@ def settings_save():
     c["use_glossary"] = request.form.get("use_glossary") == "on"
     c["carry_context"] = request.form.get("carry_context") == "on"
     c["jibo_pass"] = request.form.get("jibo_pass") == "on"
+    c["merge_lines"] = request.form.get("merge_lines") == "on"
     c["auto_check_updates"] = request.form.get("auto_check_updates") == "on"
     new_dir = request.form.get("data_dir", "").strip() or old_dir
     moved = 0
