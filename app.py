@@ -233,11 +233,12 @@ def annotate_job(job_id):
 
     st = store()
     job = st.load(job_id)
-    text = request.form.get("honkoku", (job.get("ocr") or {}).get("text", ""))
-    if not text.strip():
-        return render_template("error.html", message="翻刻テキストが空です（OCR 未完了）。"), 400
+    from_image = request.form.get("from_image") == "on"
+    text = "" if from_image else request.form.get("honkoku", (job.get("ocr") or {}).get("text", ""))
+    if not text.strip() and not from_image:
+        return render_template("error.html", message="翻刻テキストが空です（OCR 未完了）。「画像だけで翻刻」を使うこともできます。"), 400
     context = request.form.get("context", job.get("context", ""))
-    use_image = request.form.get("use_image") == "on"
+    use_image = request.form.get("use_image") == "on" or from_image
     img = st.media_path(job_id, "preview.jpg") if use_image else None
     c = cfg()
     try:
@@ -248,9 +249,10 @@ def annotate_job(job_id):
         return render_template("error.html", message=f"Claude API 呼び出しに失敗しました: {e}"), 500
     job["edited_honkoku"] = text
     job["context"] = context
+    job["from_image"] = from_image
     job["annotation"] = ann.to_dict()
     st.save(job_id, job)
-    if c.get("jibo_pass", True):
+    if c.get("jibo_pass", True) and not from_image:
         try:
             jibo_mod.apply_to_job(st, job_id, c)
         except Exception as e:  # noqa: BLE001

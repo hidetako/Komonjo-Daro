@@ -152,8 +152,14 @@ def build_user_text(ocr_text: str, context: str = "", glossary: list[dict] | Non
             if used >= PRIOR_CHARS:
                 break
         parts.append("同じ文書の前ページ（確定済み。人名・地名・用語の表記と仮名遣いを揃え、文脈の続きとして読む）:\n" + "\n".join(buf))
-    parts.append("OCR翻刻テキスト（誤認識を含む）:\n" + ocr_text.strip())
-    parts.append("\n上記を校訂し、現代語訳と注釈を作成してください。")
+    if ocr_text.strip():
+        parts.append("OCR翻刻テキスト（誤認識を含む）:\n" + ocr_text.strip())
+        parts.append("\n上記を校訂し、現代語訳と注釈を作成してください。")
+    else:
+        parts.append("OCR の結果はありません（散らし書き・写真などで OCR が機能しなかった資料です）。"
+                     "画像から直接、行ごとに翻刻してください。corrections は空でよい。行の切れ目は画像の行に合わせ、"
+                     "散らし書きで行頭の高さが違っても 1 行は 1 行として書く。")
+        parts.append("\n画像を翻刻し、現代語訳と注釈を作成してください。")
     return "\n".join(parts)
 
 

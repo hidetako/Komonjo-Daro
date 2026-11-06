@@ -105,6 +105,64 @@ def parse_output(txt: str, js: dict) -> OcrResult:
                      width=int(info.get("img_width", 0)), height=int(info.get("img_height", 0)))
 
 
+# ---- 横長・縦長画像の分割検出 ----
+SPLIT_RATIO = 1.6      # 長辺/短辺 がこれを超えたら分割
+SEG_RATIO = 1.25       # 1 区画の長辺 ≒ 短辺 × これ
+OVERLAP_RATIO = 0.18   # 区画の重なり（短辺比）
+
+
+def plan_segments(width: int, height: int) -> list[tuple[int, int, int, int]]:
+    """分割が必要なら区画 (x0, y0, x1, y1) のリスト、不要なら [] を返す。長辺に沿って重なりつきで切る。"""
+    long_, short = max(width, height), min(width, height)
+    if short <= 0 or long_ / short <= SPLIT_RATIO:
+        return []
+    seg = int(short * SEG_RATIO)
+    ov = int(short * OVERLAP_RATIO)
+    step = max(1, seg - ov)
+    starts = list(range(0, max(1, long_ - seg) + 1, step))
+    if starts[-1] + seg < long_:
+        starts.append(long_ - seg)
+    segs = []
+    for st in starts:
+        a, b = st, min(long_, st + seg)
+        segs.append((a, 0, b, height) if width >= height else (0, a, width, b))
+    return segs
+
+
+def _overlap_ratio(a: OcrLine, b: OcrLine) -> float:
+    ix = max(0, min(a.x + a.w, b.x + b.w) - max(a.x, b.x))
+    iy = max(0, min(a.y + a.h, b.y + b.h) - max(a.y, b.y))
+    inter = ix * iy
+    smaller = max(1, min(a.w * a.h, b.w * b.h))
+    return inter / smaller
+
+
+def merge_segment_results(parts: list[tuple[tuple[int, int, int, int], OcrResult]], width: int, height: int) -> OcrResult:
+    """区画ごとの結果を全体座標に直し、重なりの重複を除いて読み順に並べる。"""
+    lines: list[OcrLine] = []
+    for (x0, y0, _, _), res in parts:
+        for ln in res.lines:
+            cand = OcrLine(id=0, text=ln.text, confidence=ln.confidence, x=ln.x + x0, y=ln.y + y0, w=ln.w, h=ln.h)
+            dup = None
+            for i, kept in enumerate(lines):
+                if _overlap_ratio(cand, kept) > 0.6:
+                    dup = i
+                    break
+            if dup is None:
+                lines.append(cand)
+            elif cand.w * cand.h > lines[dup].w * lines[dup].h:   # 境界で切れた方ではなく、大きい方を採る
+                lines[dup] = cand
+    vertical = sum(1 for l in lines if l.h > l.w) * 2 >= max(1, len(lines))
+    # 縦書き: 右の行から左へ（同じ列は上から）。横書き: 上から下（同じ段は左から）
+    if vertical:
+        lines.sort(key=lambda l: (-(l.x + l.w / 2) // max(1, int(l.w * 0.8) or 1), l.y))
+    else:
+        lines.sort(key=lambda l: ((l.y + l.h / 2) // max(1, int(l.h * 0.8) or 1), l.x))
+    for i, l in enumerate(lines):
+        l.id = i
+    return OcrResult(text="\n".join(l.text for l in lines), lines=lines, width=width, height=height)
+
+
 def _build_args(src: Path, image: Path, out: Path, device: str, viz: bool) -> Namespace:
     return Namespace(
         sourcedir=None, sourceimg=str(image), output=str(out), viz=viz,
@@ -151,8 +209,12 @@ def _run_subprocess(src: Path, image: Path, out: Path, device: str, viz: bool, t
         raise RuntimeError(f"NDL-Lite の実行に失敗しました (code={proc.returncode})\n{proc.stderr[-3000:]}")
 
 
-def run_ocr(image_path: str | Path, device: str = "cpu", viz: bool = False, timeout: int = 900) -> OcrResult:
-    """1枚の画像を OCR する。device は 'cpu' か 'cuda'（onnxruntime-gpu 必須）。"""
+def run_ocr(image_path: str | Path, device: str = "cpu", viz: bool = False, timeout: int = 900,
+            split: bool | None = None) -> OcrResult:
+    """1枚の画像を OCR する。device は 'cpu' か 'cuda'（onnxruntime-gpu 必須）。
+
+    split: None なら縦横比で自動判定、True で強制分割、False で分割しない。
+    """
     src = check_installed()
     image_path = Path(image_path).resolve()
     ext = image_path.suffix.lstrip(".").lower()
@@ -164,24 +226,41 @@ def run_ocr(image_path: str | Path, device: str = "cpu", viz: bool = False, time
     job = wd / uuid.uuid4().hex
     job.mkdir()
     try:
-        safe_img = job / f"page.{ext}"      # ocr.py はファイル名を最初の '.' で切るので安全な名前にする
-        shutil.copyfile(image_path, safe_img)
-        out = job / "out"
-        out.mkdir()
-        mode = os.environ.get("KOBUN_OCR_MODE", "inprocess")
-        with _LOCK:
-            if mode == "subprocess" and not IS_FROZEN:
-                _run_subprocess(src, safe_img, out, device, viz, timeout)
-            else:
-                _run_inprocess(src, safe_img, out, device, viz)
-        txt = (out / "page.txt").read_text(encoding="utf-8")
-        js = json.loads((out / "page.json").read_text(encoding="utf-8"))
-        result = parse_output(txt, js)
-        viz_file = out / f"viz_page.{ext}"
-        if viz and viz_file.exists():
-            keep = wd / f"viz_{job.name}.{ext}"
-            shutil.move(str(viz_file), keep)
-            result.viz_path = str(keep)
-        return result
+        from PIL import Image, ImageOps
+
+        with Image.open(image_path) as src_im:
+            im = ImageOps.exif_transpose(src_im).convert("RGB")
+        segs = plan_segments(im.width, im.height) if split is None or split else []
+        if not segs:
+            safe_img = job / f"page.{ext}"      # ocr.py はファイル名を最初の '.' で切るので安全な名前にする
+            shutil.copyfile(image_path, safe_img)
+            result = _run_one(src, safe_img, job / "out", device, viz, timeout)
+            viz_file = job / "out" / f"viz_page.{ext}"
+            if viz and viz_file.exists():
+                keep = wd / f"viz_{job.name}.{ext}"
+                shutil.move(str(viz_file), keep)
+                result.viz_path = str(keep)
+            return result
+        # 横長・縦長: 区画ごとに検出して結合（検出器は 1280px 四方に縮めるため、そのままだと行が潰れる）
+        parts = []
+        for i, (x0, y0, x1, y1) in enumerate(segs):
+            seg_img = job / f"seg{i}.jpg"
+            im.crop((x0, y0, x1, y1)).save(seg_img, quality=95)
+            parts.append(((x0, y0, x1, y1), _run_one(src, seg_img, job / f"out{i}", device, False, timeout)))
+        return merge_segment_results(parts, im.width, im.height)
     finally:
         shutil.rmtree(job, ignore_errors=True)
+
+
+def _run_one(src: Path, image: Path, out: Path, device: str, viz: bool, timeout: int) -> OcrResult:
+    out.mkdir(parents=True, exist_ok=True)
+    mode = os.environ.get("KOBUN_OCR_MODE", "inprocess")
+    with _LOCK:
+        if mode == "subprocess" and not IS_FROZEN:
+            _run_subprocess(src, image, out, device, viz, timeout)
+        else:
+            _run_inprocess(src, image, out, device, viz)
+    stem = image.name.split(".")[0]
+    txt = (out / f"{stem}.txt").read_text(encoding="utf-8")
+    js = json.loads((out / f"{stem}.json").read_text(encoding="utf-8"))
+    return parse_output(txt, js)
