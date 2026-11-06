@@ -52,7 +52,7 @@
       <button type="button" data-tab="check">修正・不確実</button>
       <button type="button" data-tab="summary">要約</button>
       {% endif %}
-      <button type="button" data-tab="edit">{% if a %}再実行{% else %}現代語訳を作成{% endif %}</button>
+      <button type="button" data-tab="edit" class="action">{% if a %}再実行 ▶{% else %}現代語訳を作成 ▶{% endif %}</button>
     </div>
 
     <div class="tab active" id="tab-honkoku">
@@ -60,7 +60,7 @@
         <p class="sub tab-note" style="margin:0 0 8px">校訂済み翻刻（AI が画像で確認して修正）</p>
         <pre id="hk" class="text vtext">{{ a.honkoku }}</pre>
       {% else %}
-        <p class="sub tab-note" style="margin:0 0 8px">OCR 生テキスト（まだ校訂していません。「現代語訳を作成」タブから実行）</p>
+        <p class="sub tab-note" style="margin:0 0 8px">OCR 生テキスト（まだ校訂していません。右上の赤いボタン「現代語訳を作成 ▶」から実行）</p>
         <pre class="text vtext">{{ job.ocr.text if job.ocr else '（OCR 未完了）' }}</pre>
       {% endif %}
     </div>
