@@ -16,8 +16,10 @@ import time
 import webbrowser
 from pathlib import Path
 
-from kobun import APP_NAME
+from kobun import APP_NAME, instance, updater
 from kobun.config import ROOT
+
+_tray = None
 
 
 # Chromium 系ブラウザが接続を拒む（ERR_UNSAFE_PORT）ポート。空きポートを選ぶときに避ける
@@ -68,7 +70,19 @@ def wait_ready(port: int, timeout: float = 30) -> bool:
     return False
 
 
+def shutdown() -> None:
+    """トレイアイコンを消し、インスタンス記録を削除してから終了する。"""
+    global _tray
+    try:
+        if _tray is not None:
+            _tray.stop()
+    except Exception:  # noqa: BLE001
+        pass
+    instance.clear()
+
+
 def run_tray(url: str) -> None:
+    global _tray
     try:
         import pystray
         from PIL import Image
@@ -78,12 +92,24 @@ def run_tray(url: str) -> None:
     image = Image.open(icon_path) if icon_path.exists() else Image.new("RGB", (64, 64), "#7a1f1f")
     menu = pystray.Menu(
         pystray.MenuItem("開く", lambda: open_window(url), default=True),
-        pystray.MenuItem("終了", lambda icon: (icon.stop(), os._exit(0))),
+        pystray.MenuItem("終了", lambda icon: (shutdown(), os._exit(0))),
     )
-    pystray.Icon(APP_NAME, image, APP_NAME, menu).run()
+    _tray = pystray.Icon(APP_NAME, image, APP_NAME, menu)
+    _tray.run()
 
 
 def main() -> None:
+    # ---- 多重起動の防止: 既に動いていればそのウィンドウを開いて終わる ----
+    if not instance.acquire_mutex():
+        port = instance.wait_running_port()
+        if port:
+            open_window(f"http://127.0.0.1:{port}/")
+        return
+    port = instance.running_port()
+    if port:
+        open_window(f"http://127.0.0.1:{port}/")
+        return
+
     port = int(os.environ.get("KOBUN_PORT") or free_port())
     os.environ["KOBUN_PORT"] = str(port)
     from app import create_app
@@ -91,6 +117,8 @@ def main() -> None:
     threading.Thread(target=lambda: flask_app.run(host="127.0.0.1", port=port, debug=False, use_reloader=False), daemon=True).start()
     url = f"http://127.0.0.1:{port}/"
     if wait_ready(port):
+        instance.write(port)
+        updater.EXIT_HOOKS.append(shutdown)
         open_window(url)
     run_tray(url)       # トレイが使えない環境ではすぐ戻るので、その場合はサーバーを待ち続ける
     while True:

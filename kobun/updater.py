@@ -93,14 +93,23 @@ def download_and_install(info: ReleaseInfo) -> Path:
     if tmp.stat().st_size < 1_000_000:
         raise RuntimeError("ダウンロードしたインストーラーが小さすぎます。手動で更新してください。")
     # /SILENT: 進捗のみ表示  /CLOSEAPPLICATIONS: 使用中ファイルを持つアプリを閉じる
-    subprocess.Popen([str(tmp), "/SILENT", "/CLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS"],
+    # 再起動はインストーラーの [Run] postinstall に任せる（/RESTARTAPPLICATIONS と二重に起動しないため）
+    subprocess.Popen([str(tmp), "/SILENT", "/CLOSEAPPLICATIONS"],
                      creationflags=getattr(subprocess, "DETACHED_PROCESS", 0))
     return tmp
+
+
+EXIT_HOOKS: list = []   # 終了前に呼ぶ（トレイアイコンの除去、インスタンス記録の削除など）
 
 
 def exit_app(delay: float = 1.0) -> None:
     def _die():
         import time
         time.sleep(delay)
+        for h in list(EXIT_HOOKS):
+            try:
+                h()
+            except Exception:  # noqa: BLE001
+                pass
         os._exit(0)
     threading.Thread(target=_die, daemon=True).start()

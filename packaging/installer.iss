@@ -31,7 +31,7 @@ WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64compatible
 ; 既存バージョンの上書きインストールを許可
 UsePreviousAppDir=yes
-CloseApplications=yes
+CloseApplications=force
 RestartApplications=no
 
 [Languages]
@@ -49,7 +49,8 @@ Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Run]
-; 通常インストール後は「起動する」チェック付き、サイレント更新後は自動で再起動
+; 通常インストール後は「起動する」チェック付き、サイレント更新後はここから1回だけ再起動
+; （アプリ側は多重起動を防ぐので、万一二重に起動しても既存ウィンドウを開くだけ）
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall
 
 [UninstallDelete]

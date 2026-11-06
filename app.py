@@ -44,6 +44,12 @@ def inject_globals():
     return {"version": __version__, "updates": updates, "is_frozen": config_mod.IS_FROZEN}
 
 
+@app.get("/ping")
+def ping():
+    """多重起動チェック用。"""
+    return f"komonjo-daro {__version__}", 200, {"Content-Type": "text/plain; charset=utf-8"}
+
+
 # ---------- 読み込み ----------
 @app.get("/")
 def index():
