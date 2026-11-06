@@ -60,6 +60,37 @@ class UpdateState:
         self.error: str = ""
         self.checked = False
         self.lock = threading.Lock()
+        # ダウンロード進捗（画面のバー表示用）
+        self.dl_status = "idle"        # idle | downloading | installing | error
+        self.dl_done = 0
+        self.dl_total = 0
+        self.dl_error = ""
+
+    def progress(self) -> dict:
+        pct = int(self.dl_done * 100 / self.dl_total) if self.dl_total else 0
+        return {"status": self.dl_status, "done": self.dl_done, "total": self.dl_total, "percent": pct, "error": self.dl_error,
+                "version": self.latest.version if self.latest else ""}
+
+    def start_update(self) -> None:
+        """バックグラウンドでダウンロード→インストーラー起動→アプリ終了。進捗は progress() で見る。"""
+        if self.dl_status in ("downloading", "installing"):
+            return
+        if not self.available:
+            raise RuntimeError("新しいバージョンはありません")
+        self.dl_status, self.dl_done, self.dl_total, self.dl_error = "downloading", 0, 0, ""
+
+        def work():
+            try:
+                download_and_install(self.latest, on_progress=self._on_progress)
+                self.dl_status = "installing"
+                exit_app(2.0)
+            except Exception as e:  # noqa: BLE001
+                self.dl_status, self.dl_error = "error", str(e)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_progress(self, done: int, total: int) -> None:
+        self.dl_done, self.dl_total = done, total
 
     @property
     def available(self) -> bool:
@@ -78,18 +109,25 @@ class UpdateState:
         threading.Thread(target=self.check, daemon=True).start()
 
 
-def download_and_install(info: ReleaseInfo) -> Path:
+def download_and_install(info: ReleaseInfo, on_progress=None) -> Path:
     """インストーラーを取得してサイレント実行する。呼び出し側はこの後アプリを終了する。"""
     if not (IS_FROZEN and sys.platform == "win32"):
         raise RuntimeError("自動更新はインストーラー版（Windows）でのみ使えます。開発版は git pull してください。")
     tmp = Path(tempfile.gettempdir()) / f"Komonjo-Daro-Setup-{info.version}.exe"
     req = urllib.request.Request(info.url, headers={"User-Agent": "Komonjo-Daro"})
     with urllib.request.urlopen(req, timeout=60) as r, open(tmp, "wb") as f:
+        total = int(r.headers.get("Content-Length") or 0)
+        done = 0
+        if on_progress:
+            on_progress(0, total)
         while True:
-            chunk = r.read(1 << 20)
+            chunk = r.read(256 * 1024)
             if not chunk:
                 break
             f.write(chunk)
+            done += len(chunk)
+            if on_progress:
+                on_progress(done, total)
     if tmp.stat().st_size < 1_000_000:
         raise RuntimeError("ダウンロードしたインストーラーが小さすぎます。手動で更新してください。")
     # /SILENT: 進捗のみ表示  /CLOSEAPPLICATIONS: 使用中ファイルを持つアプリを閉じる

@@ -85,7 +85,7 @@
 </form>
 <div class="card" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center">
   <form method="post" action="{{ url_for('update_check') }}"><button type="submit" class="secondary">更新を確認</button></form>
-  {% if updates.available %}<form method="post" action="{{ url_for('update_apply') }}" data-busy="インストーラーをダウンロードしています…"><button type="submit">v{{ updates.latest.version }} に更新</button></form>{% endif %}
+  {% if updates.available %}<form method="post" action="{{ url_for('update_apply') }}"><button type="submit">v{{ updates.latest.version }} に更新</button></form>{% endif %}
   {% if is_frozen %}<form method="post" action="{{ url_for('quit_app') }}" onsubmit="return confirm('Komonjo-Daro を終了しますか？')"><button type="submit" class="secondary">アプリを終了</button></form>{% endif %}
 </div>
 {% endblock %}

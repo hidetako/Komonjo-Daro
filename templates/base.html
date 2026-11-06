@@ -19,6 +19,8 @@
   nav.nav a.on { background:var(--accent-soft); color:var(--accent); font-weight:bold; }
   .banner { background:#fff6d6; border-bottom:1px solid #e6d79a; padding:8px 16px; display:flex; gap:12px; align-items:center; }
   .flash { background:#e8f3e8; border-bottom:1px solid #bcd6bc; padding:8px 16px; }
+  .bar { height:18px; background:#e9e4d8; border:1px solid var(--line); border-radius:9px; overflow:hidden; }
+  .bar-fill { height:100%; background:var(--accent); transition:width .3s; }
   .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:14px; }
   .cardj { background:var(--panel); border:1px solid var(--line); border-radius:6px; overflow:hidden; text-decoration:none; color:var(--ink); display:flex; flex-direction:column; }
   .cardj:hover { border-color:var(--accent); }
@@ -106,7 +108,7 @@
 </header>
 {% if updates.available %}
 <div class="banner">新しいバージョン v{{ updates.latest.version }} があります（現在 v{{ version }}）。
-  <form method="post" action="{{ url_for('update_apply') }}" style="display:inline" data-busy="インストーラーをダウンロードしています…"><button type="submit">今すぐ更新</button></form>
+  <form method="post" action="{{ url_for('update_apply') }}" style="display:inline"><button type="submit">今すぐ更新</button></form>
   <a class="sub" href="{{ updates.latest.page }}" target="_blank">変更内容</a></div>
 {% endif %}
 {% with msgs = get_flashed_messages() %}{% if msgs %}<div class="flash">{% for m in msgs %}<div>{{ m }}</div>{% endfor %}</div>{% endif %}{% endwith %}

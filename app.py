@@ -21,7 +21,7 @@ from kobun import jibo as jibo_mod
 from kobun import llm, pdf, worker
 from kobun.ocr_ndl import NdlLiteNotFound, run_ocr
 from kobun.store import Store
-from kobun.updater import UpdateState, download_and_install, exit_app
+from kobun.updater import UpdateState, exit_app
 
 load_dotenv()
 
@@ -463,17 +463,22 @@ def update_check():
 
 @app.post("/update/apply")
 def update_apply():
-    if not updates.available:
-        flash("新しいバージョンはありません")
-        return redirect(url_for("settings"))
     try:
-        download_and_install(updates.latest)
+        updates.start_update()
     except Exception as e:  # noqa: BLE001
         flash(str(e))
         return redirect(url_for("settings"))
-    exit_app(1.5)
-    return render_template("message.html", title="更新中",
-                           message="インストーラーを起動しました。アプリは一度終了し、更新後に自動で再起動します。")
+    return redirect(url_for("update_progress"))
+
+
+@app.get("/update/progress")
+def update_progress():
+    return render_template("update.html", p=updates.progress())
+
+
+@app.get("/update/status")
+def update_status():
+    return jsonify(updates.progress())
 
 
 @app.post("/quit")
