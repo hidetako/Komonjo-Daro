@@ -44,6 +44,11 @@ def inject_globals():
     return {"version": __version__, "updates": updates, "is_frozen": config_mod.IS_FROZEN}
 
 
+@app.get("/favicon.png")
+def favicon():
+    return send_file(str(config_mod.ROOT / "packaging" / "icon.png"), max_age=86400)
+
+
 @app.get("/ping")
 def ping():
     """多重起動チェック用。"""
