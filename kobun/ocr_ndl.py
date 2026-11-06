@@ -349,3 +349,17 @@ def _run_one(src: Path, image: Path, out: Path, device: str, viz: bool, timeout:
     txt = (out / f"{stem}.txt").read_text(encoding="utf-8")
     js = json.loads((out / f"{stem}.json").read_text(encoding="utf-8"))
     return parse_output(txt, js)
+
+
+JUNK_CHARS = set("□■○●、。〻〱〲ゝゞ・ー｜|")
+
+
+def looks_unreliable(text: str) -> bool:
+    """OCR 結果が資料を読めていなさそうか（記号の連続、極端に短い行が多い）。"""
+    lines = [l for l in (text or "").split("\n") if l.strip()]
+    if not lines:
+        return True
+    chars = "".join(lines)
+    junk = sum(1 for c in chars if c in JUNK_CHARS or c.isdigit())
+    short = sum(1 for l in lines if len(l.strip()) <= 2)
+    return junk / max(1, len(chars)) > 0.2 or short / len(lines) > 0.4

@@ -19,7 +19,7 @@ from kobun import __version__
 from kobun import config as config_mod
 from kobun import jibo as jibo_mod
 from kobun import llm, pdf, worker
-from kobun.ocr_ndl import NdlLiteNotFound, run_ocr
+from kobun.ocr_ndl import NdlLiteNotFound, looks_unreliable, run_ocr
 from kobun.store import Store
 from kobun.updater import UpdateState, exit_app
 
@@ -76,10 +76,17 @@ def ocr():
     st = store()
     if tmp.suffix == ".pdf":
         return ocr_pdf(tmp, file.filename, st, c)
+    direct = request.form.get("direct") == "on"
     try:
         job_id = st.create(tmp, file.filename, title=request.form.get("title", ""), context=request.form.get("context", ""))
         job = st.load(job_id)
-        result = run_ocr(st.media_path(job_id, job["original"]), device=c["device"], merge_lines=c.get("merge_lines", True))
+        if direct:
+            # 書作品・散らし書き: OCR を飛ばして AI に画像から直接翻刻させる
+            job["ocr"] = {"text": "", "lines": [], "width": 0, "height": 0, "viz_path": None}
+            job["from_image"] = True
+            st.save(job_id, job)
+            return redirect(url_for("annotate_job_direct", job_id=job_id))
+        result = run_ocr(st.media_path(job_id, job["original"]), device=c["device"], merge_lines=c.get("merge_lines", False))
     except NdlLiteNotFound as e:
         return render_template("error.html", message=str(e)), 500
     except Exception as e:  # noqa: BLE001
@@ -213,7 +220,9 @@ def review(job_id):
             prev_id = ids[i - 1]
         if 0 <= i < len(ids) - 1:
             next_id = ids[i + 1]
-    return render_template("review.html", job_id=job_id, job=job, send_image=cfg()["send_image"], prev_id=prev_id, next_id=next_id)
+    unreliable = looks_unreliable((job.get("ocr") or {}).get("text", "")) if job.get("ocr") else False
+    return render_template("review.html", job_id=job_id, job=job, send_image=cfg()["send_image"], prev_id=prev_id, next_id=next_id,
+                           unreliable=unreliable)
 
 
 @app.post("/job/<job_id>/reocr")
@@ -301,6 +310,16 @@ def jibo_job(job_id):
     except Exception as e:  # noqa: BLE001
         return render_template("error.html", message=f"字母の判定に失敗しました: {e}"), 500
     return redirect(url_for("review", job_id=job_id))
+
+
+@app.get("/job/<job_id>/direct")
+def annotate_job_direct(job_id):
+    """アップロード直後の直読み実行。処理中表示のあとフォームを自動送信する。"""
+    try:
+        job = store().load(job_id)
+    except KeyError:
+        abort(404)
+    return render_template("direct.html", job_id=job_id, job=job)
 
 
 @app.get("/job/<job_id>/markdown")

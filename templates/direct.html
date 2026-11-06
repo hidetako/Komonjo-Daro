@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="card" style="max-width:720px; margin:40px auto">
+  <h2 style="margin-top:0">{{ job.title }}</h2>
+  <p>OCR を使わず、AI に画像から直接翻刻させます。数十秒かかります。</p>
+  <form method="post" action="{{ url_for('annotate_job', job_id=job_id) }}" id="direct-form" data-busy="AI が画像から翻刻し、現代語訳・注釈を作成しています（数十秒）…">
+    <input type="hidden" name="from_image" value="on"><input type="hidden" name="use_image" value="on">
+    <input type="hidden" name="context" value="{{ job.context }}">
+    <button type="submit">開始</button>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}<script>document.getElementById('direct-form').requestSubmit();</script>{% endblock %}

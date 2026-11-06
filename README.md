@@ -43,8 +43,8 @@ Komonjo-Daro/
 
 ```bash
 # kobun/__init__.py の __version__ を上げてコミットしてから
-git tag v0.8.4
-git push origin v0.8.4
+git tag v0.9.0
+git push origin v0.9.0
 ```
 GitHub Actions（`.github/workflows/release.yml`）が Windows でビルドし、Release に `Komonjo-Daro-Setup.exe` を添付する。
 タグとソースのバージョンが違うとビルドは失敗する。ローカルで作るなら `packaging\build.ps1`（Inno Setup 6 が必要）。
@@ -150,7 +150,7 @@ python -m kobun.pipeline 資料.pdf --pages 1-5 --no-llm       # PDF はペー�
 ## 精度についての注意
 
 - **横長・縦長の画像（巻子、横に広い写真）** は自動で区画に分けて行検出し、結果を結合する（NDL-Lite の検出器は 1280px 四方に縮めるため、そのままだと行が切れ切れになる）。長辺/短辺 > 1.6 で発動。
-- **散らし書き・書作品・写真** は OCR の学習範囲外で、行数が合わない・読めない文字列になることがある。その場合は「再実行」タブの「OCR の結果を使わず、画像だけから翻刻する」で AI に直接読ませる。
+- **散らし書き・書作品・写真** は OCR の学習範囲外で、行数が合わない・読めない文字列になる。読み込み時に「書作品・散らし書き・写真」にチェックするか、翻刻タブの「AI に画像から直接翻刻させる」で AI に直接読ませる（OCR が崩れていると自動で警告が出る）。
 
 NDL-Lite の学習データは主に版本・整った写本。**手書きの書状・証文（近世文書）は精度が大きく落ちる。**
 その領域に進むなら、`vendor/ndlkotenocr-lite/train/README.md` の手順で自前データを追加学習する（GTX 1650 4GB では学習は厳しく、Colab 等が現実的）。

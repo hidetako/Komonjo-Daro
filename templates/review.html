@@ -60,7 +60,17 @@
         <p class="sub tab-note" style="margin:0 0 8px">校訂済み翻刻（AI が画像で確認して修正）</p>
         <pre id="hk" class="text vtext">{{ a.honkoku }}</pre>
       {% else %}
-        <p class="sub tab-note" style="margin:0 0 8px">OCR 生テキスト（まだ校訂していません。右上の赤いボタン「現代語訳を作成 ▶」から実行）</p>
+        {% if unreliable %}
+        <div class="err tab-note" style="margin:0 0 10px">OCR がこの資料を読めていないようです（記号の連続や極端に短い行が多い）。散らし書き・書作品・写真は OCR の学習範囲外です。
+          <form method="post" action="{{ url_for('annotate_job', job_id=job_id) }}" style="margin-top:8px" data-busy="AI が画像から直接翻刻し、現代語訳・注釈を作成しています（数十秒）…">
+            <input type="hidden" name="from_image" value="on"><input type="hidden" name="use_image" value="on"><input type="hidden" name="context" value="{{ job.context }}">
+            <button type="submit">AI に画像から直接翻刻させる ▶</button></form></div>
+        {% else %}
+        <p class="tab-note" style="margin:0 0 8px; display:flex; gap:10px; align-items:center; flex-wrap:wrap"><span class="sub">OCR 生テキスト（まだ校訂していません。右上の赤いボタン「現代語訳を作成 ▶」から実行）</span>
+          <form method="post" action="{{ url_for('annotate_job', job_id=job_id) }}" style="display:inline" data-busy="AI が画像から直接翻刻し、現代語訳・注釈を作成しています（数十秒）…">
+            <input type="hidden" name="from_image" value="on"><input type="hidden" name="use_image" value="on"><input type="hidden" name="context" value="{{ job.context }}">
+            <button type="submit" class="secondary" style="padding:3px 10px; font-size:13px">OCR を使わず AI に画像から直接翻刻させる</button></form></p>
+        {% endif %}
         <pre class="text vtext">{{ job.ocr.text if job.ocr else '（OCR 未完了）' }}</pre>
       {% endif %}
     </div>
