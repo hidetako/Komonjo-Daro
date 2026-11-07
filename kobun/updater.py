@@ -21,6 +21,22 @@ from . import GITHUB_REPO, __version__
 from .config import IS_FROZEN
 
 ASSET_NAME = "Komonjo-Daro-Setup.exe"
+
+
+def log_dir() -> Path:
+    base = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Komonjo-Daro" if sys.platform == "win32" else Path.home() / ".cache" / "komonjo-daro"
+    base.mkdir(parents=True, exist_ok=True)
+    return base
+
+
+def log(msg: str) -> None:
+    """更新の経過を %LOCALAPPDATA%\Komonjo-Daro\update.log に残す（止まったときの診断用）。"""
+    try:
+        import time
+        with open(log_dir() / "update.log", "a", encoding="utf-8") as f:
+            f.write(time.strftime("%Y-%m-%d %H:%M:%S ") + msg + "\n")
+    except Exception:  # noqa: BLE001
+        pass
 API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
 
@@ -81,10 +97,15 @@ class UpdateState:
 
         def work():
             try:
+                log(f"update start: {__version__} -> {self.latest.version} ({self.latest.url})")
                 download_and_install(self.latest, on_progress=self._on_progress)
+                if self.dl_total:
+                    self.dl_done = self.dl_total
                 self.dl_status = "installing"
-                exit_app(2.0)
+                log("installer launched; exiting app")
+                exit_app(1.0)
             except Exception as e:  # noqa: BLE001
+                log(f"update failed: {e}")
                 self.dl_status, self.dl_error = "error", str(e)
 
         threading.Thread(target=work, daemon=True).start()
@@ -128,12 +149,18 @@ def download_and_install(info: ReleaseInfo, on_progress=None) -> Path:
             done += len(chunk)
             if on_progress:
                 on_progress(done, total)
-    if tmp.stat().st_size < 1_000_000:
+    size = tmp.stat().st_size
+    if size < 1_000_000:
         raise RuntimeError("ダウンロードしたインストーラーが小さすぎます。手動で更新してください。")
-    # /SILENT: 進捗のみ表示  /CLOSEAPPLICATIONS: 使用中ファイルを持つアプリを閉じる
-    # 再起動はインストーラーの [Run] postinstall に任せる（/RESTARTAPPLICATIONS と二重に起動しないため）
-    subprocess.Popen([str(tmp), "/SILENT", "/CLOSEAPPLICATIONS"],
-                     creationflags=getattr(subprocess, "DETACHED_PROCESS", 0))
+    if total and size != total:
+        raise RuntimeError(f"ダウンロードが途中で切れました（{size}/{total} バイト）。もう一度お試しください。")
+    log(f"downloaded {size} bytes -> {tmp}")
+    # /SILENT: 進捗のみ表示  /CLOSEAPPLICATIONS /FORCECLOSEAPPLICATIONS: 使用中のアプリ（自分）を確実に閉じる
+    # /LOG: インストーラー側の記録。再起動はインストーラーの [Run] postinstall に任せる
+    install_log = log_dir() / "update-install.log"
+    cmd = [str(tmp), "/SILENT", "/CLOSEAPPLICATIONS", "/FORCECLOSEAPPLICATIONS", "/NORESTART", f"/LOG={install_log}"]
+    flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    subprocess.Popen(cmd, creationflags=flags, close_fds=True)
     return tmp
 
 
@@ -141,13 +168,20 @@ EXIT_HOOKS: list = []   # 終了前に呼ぶ（トレイアイコンの除去、
 
 
 def exit_app(delay: float = 1.0) -> None:
-    def _die():
-        import time
-        time.sleep(delay)
+    """delay 秒後に終了フックを実行して os._exit する。フックが固まっても 2 秒で必ず終了する。"""
+    def _hooks():
         for h in list(EXIT_HOOKS):
             try:
                 h()
             except Exception:  # noqa: BLE001
                 pass
+
+    def _die():
+        import time
+        time.sleep(delay)
+        t = threading.Thread(target=_hooks, daemon=True)
+        t.start()
+        t.join(2.0)
+        log("app exit")
         os._exit(0)
     threading.Thread(target=_die, daemon=True).start()

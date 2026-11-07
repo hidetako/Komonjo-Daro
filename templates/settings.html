@@ -82,6 +82,7 @@
     {% if updates.available %}<span class="ng">　新しい v{{ updates.latest.version }} があります</span>{% elif updates.checked and not updates.error %}<span class="ok">　最新です</span>{% endif %}
     {% if updates.error %}<span class="sub">　{{ updates.error }}</span>{% endif %}</p>
   <label><input type="checkbox" name="auto_check_updates" {{ 'checked' if c.auto_check_updates }}> 起動時に新しいバージョンを確認する</label>
+  {% if is_frozen %}<p class="sub">更新が途中で止まったときは <code>%LOCALAPPDATA%\Komonjo-Daro\update.log</code>（アプリ側）と <code>update-install.log</code>（インストーラー側）を確認してください。</p>{% endif %}
 </div>
 <p><button type="submit">保存</button> <span class="sub">設定ファイル: {{ config_path }}</span></p>
 </form>

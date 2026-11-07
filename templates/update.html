@@ -5,7 +5,7 @@
   <h2 style="margin-top:0">v{{ p.version }} に更新しています</h2>
   <div class="bar"><div class="bar-fill" id="fill" style="width:{{ p.percent }}%"></div></div>
   <p id="msg" style="margin:10px 0 0">ダウンロード中… <span id="pct">{{ p.percent }}</span>%　<span class="sub" id="bytes"></span></p>
-  <p class="sub" id="note">ダウンロードが終わるとインストーラーが起動し、アプリは一度終了します。更新後に自動で再起動します（数十秒）。この画面は閉じて構いません。</p>
+  <p class="sub" id="note">ダウンロードが終わるとインストーラーが起動し、アプリは一度終了します。更新後に自動で再起動します（数十秒）。この画面は閉じて構いません。<br>1 分以上たっても再起動しない場合は、スタートメニューから Komonjo-Daro を起動してください。経過は <code>%LOCALAPPDATA%\Komonjo-Daro\update.log</code> と <code>update-install.log</code> に残ります。</p>
   <p id="err" class="err" style="display:none"></p>
 </div>
 {% endblock %}
@@ -22,7 +22,7 @@
     document.getElementById('fill').style.width = j.percent + '%';
     document.getElementById('pct').textContent = j.percent;
     document.getElementById('bytes').textContent = j.total ? (mb(j.done) + ' / ' + mb(j.total)) : (j.done ? mb(j.done) : '');
-    if (j.status === 'installing') { document.getElementById('msg').textContent = 'ダウンロード完了。インストーラーを起動しました。アプリは数秒で終了し、更新後に再起動します。'; }
+    if (j.status === 'installing') { document.getElementById('fill').style.width = '100%'; document.getElementById('pct').textContent = '100'; document.getElementById('msg').textContent = 'ダウンロード完了。インストーラーを起動しました。アプリは数秒で終了し、更新後に再起動します。'; }
     else if (j.status === 'error') { const e = document.getElementById('err'); e.style.display = ''; e.textContent = '更新に失敗しました: ' + j.error; document.getElementById('msg').textContent = ''; return; }
     else if (j.status === 'idle') { document.getElementById('msg').textContent = '更新は開始されていません。設定画面から「今すぐ更新」を押してください。'; return; }
     setTimeout(tick, 500);
