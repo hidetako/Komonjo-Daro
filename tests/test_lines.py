@@ -70,3 +70,35 @@ def test_save_lines_route(tmp_path, monkeypatch):
     assert job["manual_lines"] and job["ocr"]["width"] == 400 and [b["x"] for b in job["ocr"]["lines"]] == [300, 100]
     body = c.get(f"/job/{jid}").get_data(as_text=True)
     assert "行を手で切る" in body and "行ごとに読む" in body and "（手動）" in body
+
+
+def test_save_lines_rescales_from_preview_space(tmp_path, monkeypatch):
+    """ocr.width が無い直接翻刻ジョブで、画面が preview（長辺 2000px）の座標で枠を送ってきたら原寸に換算する。"""
+    monkeypatch.setenv("KOBUN_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("KOBUN_DATA_DIR", str(tmp_path / "data"))
+    import app as m
+    c = m.app.test_client()
+    st = Store(tmp_path / "data")
+    jid = st.create_from_image(Image.new("RGB", (4000, 1000), "white"), "t", "g", 1, 1, "x.jpg")
+    job = st.load(jid); job["ocr"] = {"text": "", "lines": [], "width": 0, "height": 0, "viz_path": None}; st.save(jid, job)
+    r = c.post(f"/job/{jid}/lines", json={"lines": [{"x": 1000, "y": 100, "w": 50, "h": 300}], "ref": {"w": 2000, "h": 500}})
+    assert r.get_json()["count"] == 1
+    b = st.load(jid)["ocr"]["lines"][0]
+    assert (b["x"], b["y"], b["w"], b["h"]) == (2000, 200, 100, 600) and st.load(jid)["ocr"]["width"] == 4000
+    # 同じ座標系なら無換算
+    r = c.post(f"/job/{jid}/lines", json={"lines": [{"x": 1000, "y": 100, "w": 50, "h": 300}], "ref": {"w": 4000, "h": 1000}})
+    assert st.load(jid)["ocr"]["lines"][0]["x"] == 1000
+
+
+def test_direct_job_records_image_size(tmp_path, monkeypatch):
+    monkeypatch.setenv("KOBUN_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("KOBUN_DATA_DIR", str(tmp_path / "data"))
+    import io
+    import app as m
+    c = m.app.test_client()
+    buf = io.BytesIO(); Image.new("RGB", (3000, 800), "white").save(buf, format="JPEG")
+    r = c.post("/ocr", data={"image": (io.BytesIO(buf.getvalue()), "w.jpg"), "title": "d", "direct": "on"}, content_type="multipart/form-data")
+    assert r.status_code == 302 and "/direct" in r.headers["Location"]
+    jid = r.headers["Location"].rstrip("/").split("/")[-2]
+    job = Store(tmp_path / "data").load(jid)
+    assert job["from_image"] and (job["ocr"]["width"], job["ocr"]["height"]) == (3000, 800)

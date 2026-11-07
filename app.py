@@ -89,7 +89,8 @@ def ocr():
         job = st.load(job_id)
         if direct:
             # 書作品・散らし書き: OCR を飛ばして AI に画像から直接翻刻させる
-            job["ocr"] = {"text": "", "lines": [], "width": 0, "height": 0, "viz_path": None}
+            w, h = st.image_size(job_id, job)
+            job["ocr"] = {"text": "", "lines": [], "width": w, "height": h, "viz_path": None}
             job["from_image"] = True
             st.save(job_id, job)
             return redirect(url_for("annotate_job_direct", job_id=job_id))
@@ -499,11 +500,15 @@ def save_lines(job_id):
     data = request.get_json(silent=True) or {}
     ocr = job.get("ocr") or {"text": "", "lines": [], "width": 0, "height": 0, "viz_path": None}
     if not ocr.get("width"):
-        from PIL import Image, ImageOps
-        with Image.open(st.media_path(job_id, job["original"])) as im:
-            im = ImageOps.exif_transpose(im)
-            ocr["width"], ocr["height"] = im.width, im.height
-    boxes = lines_mod.normalize_boxes(data.get("lines", []), ocr["width"], ocr["height"])
+        ocr["width"], ocr["height"] = st.image_size(job_id, job)
+    raw = data.get("lines", [])
+    # 画面が使った座標系（ref）が保存先の画像サイズと違えば換算する（表示用 preview は長辺 2000px に縮小されている）
+    ref = data.get("ref") or {}
+    ref_w = float(ref.get("w") or 0)
+    if ref_w and abs(ref_w - ocr["width"]) > 0.5:
+        k = ocr["width"] / ref_w
+        raw = [{**b, "x": float(b.get("x", 0)) * k, "y": float(b.get("y", 0)) * k, "w": float(b.get("w", 0)) * k, "h": float(b.get("h", 0)) * k} for b in raw]
+    boxes = lines_mod.normalize_boxes(raw, ocr["width"], ocr["height"])
     ocr["lines"] = boxes
     ocr["text"] = "\n".join(b["text"] for b in boxes)
     job["ocr"] = ocr

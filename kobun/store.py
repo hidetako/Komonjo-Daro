@@ -123,6 +123,13 @@ class Store:
         e = self.job_dir(job_id) / "enhanced.jpg"
         return e if job.get("enhanced") and e.exists() else self.job_dir(job_id) / job["original"]
 
+    def image_size(self, job_id: str, job: dict | None = None) -> tuple[int, int]:
+        """OCR・行枠の座標系に使う画像（補正画像があればそれ、無ければ原本）の幅と高さ。"""
+        job = job or self.load(job_id)
+        with Image.open(self.source_image(job_id, job)) as im:
+            im = ImageOps.exif_transpose(im)
+            return im.width, im.height
+
     def make_enhanced(self, job_id: str) -> dict:
         """原本から補正画像を作って job に記録する。"""
         from .preprocess import enhance

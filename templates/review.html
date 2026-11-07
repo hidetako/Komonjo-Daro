@@ -309,7 +309,7 @@
       boxes = boxes.filter((b, i) => !selected.has(i)); boxes.push({x:x0, y:y0, w:x1-x0, h:y1-y0, text:''}); selected = new Set([boxes.length-1]); render();
     });
     document.getElementById('ln-save').addEventListener('click', async () => {
-      const r = await fetch('{{ url_for('save_lines', job_id=job_id) }}', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({lines: boxes})});
+      const r = await fetch('{{ url_for('save_lines', job_id=job_id) }}', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({lines: boxes, ref: {w: natW || img.naturalWidth, h: natH || img.naturalHeight}})});
       const j = await r.json(); if (!j.ok) { alert('保存に失敗しました'); return; }
       stop(); readBox.style.display = ''; document.querySelector('#line-read .sub').textContent = `${j.count} 行の枠を保存しました。枠ごとに読む:`;
     });
