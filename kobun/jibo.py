@@ -43,7 +43,9 @@ SYSTEM = """あなたは日本古典籍（版本・写本）の変体仮名を�
 - 字母は与えられた候補表の中から選ぶ。候補のどれとも字形が合わないときは、先頭の標準字母に ? を付ける（例: 可?(か)）。
 - 現行の平仮名と同じ字形なら標準字母（候補表の先頭）を使う。
 - 漢字はそのまま書く。踊り字（ゝ、〳〵）、濁点、句読点もそのまま。
-- 翻刻の文字列を変えない。文字の追加・削除はしない（翻刻の誤りに気づいても、ここでは直さず、そのかなに最も近い字母を当てる）。
+- 翻刻の文字列は 1 字も変えない。文字の追加・削除・置換はしない（翻刻の誤りに気づいても、ここでは直さず、そのかなに最も近い字母を当てる）。
+  〔 〕や ■ も翻刻にあるとおりの位置に残す。例: 翻刻「い〔とき〕は」→「以(い)〔登(と)幾(き)〕波(は)」。
+  字母を添えた文字列から「字母(」と「)」を取り除くと、翻刻と完全に一致しなければならない。
 - 画像に本文以外（蔵書印、丁付、罫線）しか無い行は jibo を空にする。
 - 画像が不鮮明で判定できないかなは標準字母に ? を付ける。推測で珍しい字母を当てない。
 
@@ -69,6 +71,43 @@ SCHEMA = {
     "required": ["lines"],
     "additionalProperties": False,
 }
+
+
+import re as _re
+
+_JIBO_RE = _re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\U00020000-\U0002ffff]+\??\(([^()]+)\)")   # 字母は漢字のみ。〔〕■ は残す
+STANDARD = {k: v.split()[0] for k, v in JIBO_CANDIDATES.items()}
+_SMALL = {"ぁ": "あ", "ぃ": "い", "ぅ": "う", "ぇ": "え", "ぉ": "お", "ゃ": "や", "ゅ": "ゆ", "ょ": "よ", "っ": "つ", "ゎ": "わ"}
+
+
+def strip_jibo(jibo: str) -> str:
+    """「字母(かな)」の列から、かなだけを取り出して翻刻の文字列に戻す。"""
+    return _JIBO_RE.sub(lambda m: m.group(1), jibo)
+
+
+def mechanical_jibo(text: str) -> str:
+    """字形を見ずに標準字母を機械的に添える（検証に落ちた行の代替。? 付き）。"""
+    out = []
+    for ch in text:
+        base = _SMALL.get(ch, ch)
+        if base in STANDARD:
+            out.append(f"{STANDARD[base]}?({ch})")
+        elif base in ("が", "ぎ", "ぐ", "げ", "ご", "ざ", "じ", "ず", "ぜ", "ぞ", "だ", "ぢ", "づ", "で", "ど", "ば", "び", "ぶ", "べ", "ぼ", "ぱ", "ぴ", "ぷ", "ぺ", "ぽ"):
+            import unicodedata
+            plain = unicodedata.normalize("NFD", base)[0]
+            out.append(f"{STANDARD.get(plain, '')}?({ch})" if plain in STANDARD else ch)
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
+def _norm(t: str) -> str:
+    return _re.sub(r"\s+", "", t or "")
+
+
+def validate_jibo(text: str, jibo: str) -> bool:
+    """字母付き文字列が翻刻と対応しているか（字母を除いた列が一致するか）。"""
+    return _norm(strip_jibo(jibo)) == _norm(text)
 
 
 def crop_line(im: Image.Image, line: dict) -> Image.Image:
@@ -118,7 +157,7 @@ def build_batches(job: dict, image_path: str | Path, lines_per_call: int = LINES
 
 def run_jibo(job: dict, image_path: str | Path, provider: str, model: str, effort: str, api_key: str,
              client=None) -> tuple[str, int, int]:
-    """字母付き翻刻（全行を改行で結合）と、使用トークン数を返す。"""
+    """字母付き翻刻（全行を改行で結合）と、使用トークン数を返す。行は翻刻と同じ位置（空行は空のまま）。"""
     results: dict[int, str] = {}
     tin = tout = 0
     for batch in build_batches(job, image_path):
@@ -132,8 +171,19 @@ def run_jibo(job: dict, image_path: str | Path, provider: str, model: str, effor
         for ln in json.loads(r.text).get("lines", []):
             results[int(ln["n"])] = ln.get("jibo", "")
     ocr_lines = len((job.get("ocr") or {}).get("lines") or [])
-    out = [results.get(n, "") for n in range(1, ocr_lines + 1)]
-    return "\n".join(s for s in out if s.strip()), tin, tout
+    texts = line_texts(job)
+    out = []
+    for n in range(1, ocr_lines + 1):
+        text = texts[n - 1] if n - 1 < len(texts) else ""
+        j = results.get(n, "")
+        if not text.strip():
+            out.append("")
+            continue
+        if not j.strip() or not validate_jibo(text, j):
+            # AI が翻刻を書き換えた／返さなかった行は、対応を崩さないよう標準字母で機械的に付ける（? 付き）
+            j = mechanical_jibo(text)
+        out.append(j)
+    return "\n".join(out), tin, tout
 
 
 def apply_to_job(store, job_id: str, cfg: dict, client=None) -> dict:
@@ -146,8 +196,11 @@ def apply_to_job(store, job_id: str, cfg: dict, client=None) -> dict:
     provider, model, key = _config.active(cfg)
     img = store.media_path(job_id, job["original"])
     jibo, tin, tout = run_jibo(job, img, provider, model, cfg.get("effort", "high"), key, client=client)
+    texts = line_texts(job)
+    pairs = [{"text": t, "jibo": j} for t, j in zip(texts, jibo.split("\n")) if t.strip()]
     job = store.load(job_id)
-    job["annotation"]["jibo"] = jibo
+    job["annotation"]["jibo"] = "\n".join(p["jibo"] for p in pairs)
+    job["annotation"]["jibo_lines"] = pairs
     job["annotation"]["jibo_tokens"] = tin + tout
     store.save(job_id, job)
     return job

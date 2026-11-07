@@ -103,7 +103,10 @@
       <pre class="text vtext half" style="font-size:16px">{{ a.gendaigo }}</pre>
       {% if a.jibo %}
       <p class="sub tab-note" style="margin:10px 0 6px; border-top:1px solid var(--line); padding-top:8px">字母付き翻刻　各かなの元になった漢字（万葉仮名・変体仮名の字母）。全体は「字母」タブ</p>
-      <pre class="text jibo vtext half">{{ a.jibo|replace('(', '（')|replace(')', '）')|replace('?', '？') }}</pre>
+      <pre class="text jibo vtext half">{% if a.jibo_lines %}{% for p in a.jibo_lines %}<span class="jibo-src">{{ p.text }}</span>
+{{ p.jibo|replace('(', '（')|replace(')', '）')|replace('?', '？') }}
+{% if not loop.last %}
+{% endif %}{% endfor %}{% else %}{{ a.jibo|replace('(', '（')|replace(')', '）')|replace('?', '？') }}{% endif %}</pre>
       {% else %}
       <p class="sub tab-note" style="margin-top:12px">まだ字母が付いていません。「字母」タブの「字母を判定し直す」で付けられます。</p>
       {% endif %}
@@ -114,7 +117,12 @@
         <span style="flex:1"></span>
         <form method="post" action="{{ url_for('jibo_job', job_id=job_id) }}" data-busy="行を切り出して字母を判定しています（行数により数十秒〜）…"><button type="submit" class="secondary">字母を判定し直す</button></form>
       </div>
-      {% if a.jibo %}
+      {% if a.jibo_lines %}
+      <pre id="jibo" class="text jibo vtext">{% for p in a.jibo_lines %}<span class="jibo-src">{{ p.text }}</span>
+{{ p.jibo|replace('(', '（')|replace(')', '）')|replace('?', '？') }}
+{% if not loop.last %}
+{% endif %}{% endfor %}</pre>
+      {% elif a.jibo %}
       <pre id="jibo" class="text jibo vtext">{{ a.jibo|replace('(', '（')|replace(')', '）')|replace('?', '？') }}</pre>
       {% else %}
       <p class="sub">まだ字母が付いていません。「字母を判定し直す」で行切り出しの判定を実行します（設定で自動実行をオンにすると現代語訳のあとに自動で付きます）。</p>

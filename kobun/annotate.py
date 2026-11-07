@@ -5,7 +5,7 @@ import base64
 import io
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -27,8 +27,9 @@ SYSTEM_PROMPT = """あなたは日本古典籍（和古書・写本・版本）�
 OCRは誤認識を含みます。画像がある場合は必ず画像を一次資料として優先し、OCRテキストは参考にとどめてください。
 
 出力は指定されたJSONスキーマに従ってください。各項目の方針:
-- honkoku: 校訂済みの翻刻。原文の行区切りを保ち、仮名・漢字は原文のままにし、濁点・句読点を勝手に補わない。
-  判読できない文字は「■」、推定を含む文字は〔 〕で囲む。
+- honkoku: 校訂済みの翻刻。OCR翻刻テキストと同じ行数・同じ順序を必ず保つ（1行目は1行目に対応）。
+  行の中の文字だけを直し、行を増減・結合・分割しない。本文でない行（蔵書印・丁付など）は空行にして残す。
+  仮名・漢字は原文のままにし、濁点・句読点を勝手に補わない。判読できない文字は「■」、推定を含む文字は〔 〕で囲む。
 - corrections: OCRから変更した箇所。根拠を短く書く。画像で確認できなかった変更はしない。
 - gendaigo: 平易で正確な現代語訳。意訳しすぎず、省略された主語は〔 〕で補う。
 - annotations: 人名・地名・官職・語彙・典拠・年号など、読解に必要な注。確実でない説明は「推定」と明記する。
@@ -91,13 +92,16 @@ class Annotation:
     output_tokens: int
     jibo: str = ""          # 第2パス（kobun/jibo.py: 行切り出し）で付く。無ければ空
     jibo_tokens: int = 0    # 第2パスの使用トークン（入力+出力）
+    jibo_lines: list = field(default_factory=list)   # [{"text": 翻刻行, "jibo": 字母付き行}]
 
     def to_dict(self) -> dict:
         return self.__dict__.copy()
 
     def to_markdown(self) -> str:
         md = ["## 翻刻（校訂済）", "", self.honkoku, "", "## 現代語訳", "", self.gendaigo, ""]
-        if self.jibo:
+        if self.jibo_lines:
+            md += ["## 字母付き翻刻（変体仮名のもとの漢字）", ""] + [f"{p['text']}\n　{p['jibo']}" for p in self.jibo_lines] + [""]
+        elif self.jibo:
             md += ["## 字母付き翻刻（変体仮名のもとの漢字）", "", self.jibo, ""]
         if self.annotations:
             md += ["## 注釈", ""] + [f"- **{a['term']}**: {a['note']}" for a in self.annotations] + [""]
