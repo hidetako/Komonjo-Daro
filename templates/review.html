@@ -81,8 +81,21 @@
 
     <div class="tab active" id="tab-honkoku">
       {% if a %}
-        <p class="sub tab-note" style="margin:0 0 8px">校訂済み翻刻（AI が画像で確認して修正）</p>
+        <div class="toolbar tab-note" style="margin:0 0 8px">
+          <span class="sub">{% if job.honkoku_fixed %}確定翻刻（利用者が校訂）{% else %}校訂済み翻刻（AI が画像で確認して修正）{% endif %}</span>
+          <span style="flex:1"></span>
+          <button type="button" class="secondary" id="hk-edit" style="padding:3px 10px; font-size:13px">翻刻を編集</button>
+        </div>
         <pre id="hk" class="text vtext">{{ a.honkoku }}</pre>
+        <form id="hk-form" method="post" action="{{ url_for('save_honkoku', job_id=job_id) }}" class="tab-note" style="display:none" data-busy="保存しています…">
+          <p class="sub" style="margin:0 0 6px">1 行＝原文の 1 行のまま直してください（行数を変えると字母の対応が取れなくなります）。判読不能は ■、推定は〔 〕。</p>
+          <textarea name="honkoku" rows="12">{{ a.honkoku }}</textarea>
+          <p style="display:flex; gap:8px; flex-wrap:wrap; margin:8px 0 0">
+            <button type="submit" name="then" value="save" class="secondary">翻刻だけ保存</button>
+            <button type="submit" name="then" value="retranslate" onclick="this.form.dataset.busy='確定翻刻に合わせて現代語訳・注釈を作り直しています（数十秒）…'">保存して現代語訳を作り直す ▶</button>
+            <button type="button" class="secondary" id="hk-cancel">取り消し</button>
+          </p>
+        </form>
       {% else %}
         {% if unreliable %}
         <div class="err tab-note" style="margin:0 0 10px">OCR がこの資料を読めていないようです（記号の連続や極端に短い行が多い）。散らし書き・書作品・写真は OCR の学習範囲外です。
@@ -101,7 +114,17 @@
 
     {% if a %}
     <div class="tab" id="tab-gendaigo">
-      <pre class="text vtext half" style="font-size:16px">{{ a.gendaigo }}</pre>
+      {% if job.translation_stale %}
+      <div class="err tab-note" style="margin:0 0 10px">翻刻が修正されています。この現代語訳は修正前の翻刻に基づくものです。
+        <form method="post" action="{{ url_for('retranslate', job_id=job_id) }}" style="margin-top:8px" data-busy="確定翻刻に合わせて現代語訳・注釈を作り直しています（数十秒）…"><button type="submit">確定翻刻で現代語訳を作り直す ▶</button></form></div>
+      {% endif %}
+      <div class="toolbar tab-note" style="margin:0 0 6px"><span class="sub">{% if job.gendaigo_edited %}現代語訳（利用者が修正）{% else %}現代語訳{% endif %}</span><span style="flex:1"></span>
+        <button type="button" class="secondary" id="gd-edit" style="padding:3px 10px; font-size:13px">訳文を編集</button></div>
+      <pre id="gd" class="text vtext half" style="font-size:16px">{{ a.gendaigo }}</pre>
+      <form id="gd-form" method="post" action="{{ url_for('save_gendaigo', job_id=job_id) }}" class="tab-note" style="display:none">
+        <textarea name="gendaigo" rows="10">{{ a.gendaigo }}</textarea>
+        <p style="display:flex; gap:8px; margin:8px 0 0"><button type="submit">保存</button><button type="button" class="secondary" id="gd-cancel">取り消し</button></p>
+      </form>
       {% if a.jibo %}
       <p class="sub tab-note" style="margin:10px 0 6px; border-top:1px solid var(--line); padding-top:8px">字母付き翻刻　各かなの元になった漢字（万葉仮名・変体仮名の字母）。全体は「字母」タブ</p>
       <pre class="text jibo vtext half">{% if a.jibo_lines %}{% for p in a.jibo_lines %}<span class="jibo-src">{{ p.text }}</span>
@@ -165,7 +188,7 @@
 
     <div class="tab" id="tab-edit">
       <form method="post" action="{{ url_for('annotate_job', job_id=job_id) }}" data-busy="Claude が校訂・現代語訳・注釈を作成しています（数十秒）…">
-        <p class="sub" style="margin-top:0">OCR 結果を必要なら手で直してから送信してください。明らかな誤読を直しておくと校訂精度が上がります。
+        <p class="sub" style="margin-top:0"><strong>初回の校訂用</strong>。OCR 結果を必要なら手で直してから送信すると、AI が画像と見比べて校訂し、現代語訳・注釈を作ります（AI が翻刻を変えることがあります）。<br>できあがった翻刻をさらに直すときは「翻刻」タブの「翻刻を編集」→「保存して現代語訳を作り直す」を使ってください。そちらでは AI は翻刻を変えません。
         {% if job.group %}同じ文書の前ページ（現代語訳済み）の翻刻と注釈語、{% endif %}用語集は設定に従って自動で参考に渡されます。</p>
         <textarea name="honkoku" rows="14">{{ job.edited_honkoku or (job.ocr.text if job.ocr else '') }}</textarea>
         <p><input type="text" name="context" value="{{ job.context }}" placeholder="補足（資料名・巻・刊年など。任意）"></p>
@@ -275,6 +298,14 @@
     zoom.addEventListener('input', () => { if (editing) render(); });
     {% if job.manual_lines %}readBox.style.display = '';{% endif %}
   })();
+
+  // 翻刻・訳文の編集フォームの開閉
+  for (const [btn, form, view, cancel] of [['hk-edit','hk-form','hk','hk-cancel'], ['gd-edit','gd-form','gd','gd-cancel']]) {
+    const b = document.getElementById(btn), f = document.getElementById(form), v = document.getElementById(view), c = document.getElementById(cancel);
+    if (!b || !f) continue;
+    b.addEventListener('click', () => { f.style.display = ''; v.style.display = 'none'; b.style.display = 'none'; });
+    c.addEventListener('click', () => { f.style.display = 'none'; v.style.display = ''; b.style.display = ''; });
+  }
 
   // 縦書き／横書き（既定は縦。原典に合わせる）
   const rp = document.querySelector('.read-panel'), wButtons = document.querySelectorAll('#writing-seg button');

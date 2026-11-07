@@ -43,8 +43,8 @@ Komonjo-Daro/
 
 ```bash
 # kobun/__init__.py の __version__ を上げてコミットしてから
-git tag v0.10.3
-git push origin v0.10.3
+git tag v0.11.0
+git push origin v0.11.0
 ```
 GitHub Actions（`.github/workflows/release.yml`）が Windows でビルドし、Release に `Komonjo-Daro-Setup.exe` を添付する。
 タグとソースのバージョンが違うとビルドは失敗する。ローカルで作るなら `packaging\build.ps1`（Inno Setup 6 が必要）。
@@ -112,6 +112,14 @@ cp .env.example .env   # APIキーを記入
 docker compose up --build
 ```
 Dockerfile 内で NDL-Lite を clone するので vendor の手動取得は不要。http://127.0.0.1:5000
+
+## 翻刻を直すときの流れ
+
+1. 初回: OCR（または「行を手で切る」→「行ごとに読む」）→「現代語訳を作成 ▶」。AI が画像と見比べて校訂翻刻・現代語訳・注釈・字母を作る。
+2. 翻刻タブ「翻刻を編集」で校訂翻刻を直す。「翻刻だけ保存」すると現代語訳タブに「翻刻が修正されています」と出る。
+3. 「保存して現代語訳を作り直す ▶」（または現代語訳タブの同名ボタン）。あなたの翻刻を確定稿として渡し、AI は翻刻を 1 字も変えずに現代語訳・注釈・要約を作り直す。字母も再判定。
+4. 訳文の言い回しだけ直したいときは現代語訳タブ「訳文を編集」（AI は呼ばない）。
+5. 「再実行 ▶」タブは初回と同じ「OCR テキストから AI が校訂する」経路。確定稿を上書きするので、校訂後は 2〜3 を使う。
 
 ## Web 画面の使い方
 

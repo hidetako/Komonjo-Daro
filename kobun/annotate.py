@@ -129,7 +129,7 @@ PRIOR_CHARS = 3000   # 前ページの参考として渡す上限（翻刻＋注
 
 
 def build_user_text(ocr_text: str, context: str = "", glossary: list[dict] | None = None,
-                    prior_pages: list[dict] | None = None) -> str:
+                    prior_pages: list[dict] | None = None, fixed: bool = False) -> str:
     parts = []
     if context.strip():
         parts.append(f"資料についての補足情報:\n{context.strip()}\n")
@@ -156,7 +156,11 @@ def build_user_text(ocr_text: str, context: str = "", glossary: list[dict] | Non
             if used >= PRIOR_CHARS:
                 break
         parts.append("同じ文書の前ページ（確定済み。人名・地名・用語の表記と仮名遣いを揃え、文脈の続きとして読む）:\n" + "\n".join(buf))
-    if ocr_text.strip():
+    if fixed and ocr_text.strip():
+        parts.append("確定翻刻（利用者が校訂済み。これが正本）:\n" + ocr_text.strip())
+        parts.append("\n翻刻は確定しています。honkoku にはこの文字列をそのまま（行構成も含めて 1 字も変えずに）返し、corrections は空にしてください。"
+                     "画像は語の解釈や判読の参考にのみ使い、翻刻を直さないでください。現代語訳・注釈・不確実な箇所・要約・推定時代を作成してください。")
+    elif ocr_text.strip():
         parts.append("OCR翻刻テキスト（誤認識を含む）:\n" + ocr_text.strip())
         parts.append("\n上記を校訂し、現代語訳と注釈を作成してください。")
     else:
@@ -180,7 +184,7 @@ def build_user_content(ocr_text: str, image_path: str | Path | None, context: st
 def annotate(ocr_text: str, image_path: str | Path | None = None, context: str = "", client=None,
              model: str | None = None, effort: str | None = None, api_key: str | None = None,
              provider: str | None = None, glossary: list[dict] | None = None,
-             prior_pages: list[dict] | None = None) -> Annotation:
+             prior_pages: list[dict] | None = None, fixed: bool = False) -> Annotation:
     """OCRテキストと画像を LLM に送り、構造化された校訂・現代語訳・注釈を返す。
 
     プロバイダ・モデル・キーは 引数 > 設定ファイル（設定画面） > 環境変数 の順で決まる。
@@ -197,6 +201,10 @@ def annotate(ocr_text: str, image_path: str | Path | None = None, context: str =
             f"{llm.PROVIDERS[provider]['label']} の API キーが設定されていません。画面右上の「設定」から入力してください。"
         )
     image = encode_image(image_path) if image_path else None
-    r = llm.call(provider, model, effort, key, SYSTEM_PROMPT, build_user_text(ocr_text, context, glossary, prior_pages), image, OUTPUT_SCHEMA, client=client)
+    r = llm.call(provider, model, effort, key, SYSTEM_PROMPT, build_user_text(ocr_text, context, glossary, prior_pages, fixed), image, OUTPUT_SCHEMA, client=client)
     data = llm.parse_json(r.text)
+    if fixed:
+        # 確定翻刻は AI の返答にかかわらず利用者の文字列を正本にする
+        data["honkoku"] = ocr_text.strip("\n")
+        data["corrections"] = []
     return Annotation(**data, model=r.model, input_tokens=r.input_tokens, output_tokens=r.output_tokens)

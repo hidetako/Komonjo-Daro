@@ -317,6 +317,88 @@ def annotate_job(job_id):
     return redirect(url_for("review", job_id=job_id))
 
 
+@app.post("/job/<job_id>/honkoku")
+def save_honkoku(job_id):
+    """校訂済み翻刻を手で直して保存する。現代語訳は古くなるので印を付ける。"""
+    st = store()
+    try:
+        job = st.load(job_id)
+    except KeyError:
+        abort(404)
+    if not job.get("annotation"):
+        abort(400)
+    text = request.form.get("honkoku", "").strip("\n")
+    if not text.strip():
+        flash("翻刻が空です")
+        return redirect(url_for("review", job_id=job_id))
+    changed = text != job["annotation"]["honkoku"]
+    job["annotation"]["honkoku"] = text
+    job["annotation"]["corrections"] = []
+    job["edited_honkoku"] = text
+    if changed:
+        job["honkoku_fixed"] = True        # 利用者が確定した翻刻
+        job["translation_stale"] = True    # 現代語訳が古い
+        job["annotation"]["jibo"] = ""
+        job["annotation"]["jibo_lines"] = []
+    st.save(job_id, job)
+    if request.form.get("then") == "retranslate":
+        return redirect(url_for("retranslate", job_id=job_id), code=307)
+    flash("翻刻を保存しました" + ("。現代語訳は古くなっています。「現代語訳を作り直す」で追従させてください" if changed else ""))
+    return redirect(url_for("review", job_id=job_id))
+
+
+@app.post("/job/<job_id>/retranslate")
+def retranslate(job_id):
+    """確定翻刻を 1 字も変えずに、現代語訳・注釈・要約だけを作り直す（字母も再判定）。"""
+    from kobun.annotate import annotate
+
+    st = store()
+    try:
+        job = st.load(job_id)
+    except KeyError:
+        abort(404)
+    if not job.get("annotation"):
+        abort(400)
+    text = job["annotation"]["honkoku"]
+    c = cfg()
+    img = st.media_path(job_id, "preview.jpg") if c["send_image"] else None
+    try:
+        ann = annotate(text, img, context=job.get("context", ""), fixed=True,
+                       glossary=st.glossary() if c["use_glossary"] else None,
+                       prior_pages=st.prior_pages(job) if c["carry_context"] else None)
+    except Exception as e:  # noqa: BLE001
+        return render_template("error.html", message=f"現代語訳の作り直しに失敗しました: {e}"), 500
+    job = st.load(job_id)
+    job["annotation"] = ann.to_dict()
+    job["honkoku_fixed"] = True
+    job["translation_stale"] = False
+    st.save(job_id, job)
+    if c.get("jibo_pass", True) and not job.get("from_image") and (job.get("ocr") or {}).get("lines"):
+        try:
+            jibo_mod.apply_to_job(st, job_id, c)
+        except Exception as e:  # noqa: BLE001
+            flash(f"現代語訳は作り直しましたが、字母の判定に失敗しました: {e}")
+    flash("確定翻刻に合わせて現代語訳・注釈を作り直しました")
+    return redirect(url_for("review", job_id=job_id))
+
+
+@app.post("/job/<job_id>/gendaigo")
+def save_gendaigo(job_id):
+    """現代語訳の文を手で直して保存する（AI は呼ばない）。"""
+    st = store()
+    try:
+        job = st.load(job_id)
+    except KeyError:
+        abort(404)
+    if not job.get("annotation"):
+        abort(400)
+    job["annotation"]["gendaigo"] = request.form.get("gendaigo", "").strip("\n")
+    job["gendaigo_edited"] = True
+    st.save(job_id, job)
+    flash("現代語訳を保存しました")
+    return redirect(url_for("review", job_id=job_id))
+
+
 @app.post("/job/<job_id>/jibo")
 def jibo_job(job_id):
     """字母の第2パス（行切り出し）だけを実行し直す。"""
