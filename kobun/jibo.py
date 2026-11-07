@@ -194,7 +194,7 @@ def apply_to_job(store, job_id: str, cfg: dict, client=None) -> dict:
     if not job.get("annotation") or not job.get("ocr"):
         return job
     provider, model, key = _config.active(cfg)
-    img = store.media_path(job_id, job["original"])
+    img = store.source_image(job_id, job)
     jibo, tin, tout = run_jibo(job, img, provider, model, cfg.get("effort", "high"), key, client=client)
     texts = line_texts(job)
     pairs = [{"text": t, "jibo": j} for t, j in zip(texts, jibo.split("\n")) if t.strip()]

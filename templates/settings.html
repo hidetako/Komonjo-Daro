@@ -72,6 +72,8 @@
   <div class="form-row">
     <label class="k">デバイス</label>
     <select name="device"><option value="cpu" {{ 'selected' if c.device == 'cpu' }}>cpu（標準）</option><option value="cuda" {{ 'selected' if c.device == 'cuda' }}>cuda（onnxruntime-gpu 導入時のみ）</option></select>
+    <label class="k">画像の補正</label>
+    <label><input type="checkbox" name="preprocess" {{ 'checked' if c.preprocess }}> 読み込み時に影・傾き・薄さを補正した画像を作り、OCR と AI にはそちらを渡す（表示は原本のまま。写真に効く）</label>
     <label class="k">行の結合</label>
     <label><input type="checkbox" name="merge_lines" {{ 'checked' if c.merge_lines }}> 同じ列で縦に分断された断片を 1 行につなぎ、つないだ範囲で文字認識をやり直す（版本で 1 行が割れるとき向け。書作品・散らし書きでは悪化するので既定はオフ）</label>
   </div>

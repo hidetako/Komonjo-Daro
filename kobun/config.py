@@ -32,6 +32,7 @@ DEFAULTS = {
     "carry_context": True,      # 同じ文書の前ページを参考に渡す
     "jibo_pass": True,          # 現代語訳のあとに字母判定（行切り出し）を自動で行う
     "merge_lines": False,       # 分断された行を結合する（版本の切れ目向け。書作品では悪化するので既定オフ）
+    "preprocess": True,         # 読み込み時に画像を補正（影・傾き・薄さ）して OCR と AI に渡す
 }
 
 

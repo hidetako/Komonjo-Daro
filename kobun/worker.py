@@ -42,7 +42,7 @@ def start_ocr(store: Store, job_ids: list[str], group: str, device: str, merge_l
             try:
                 job = store.load(jid)
                 p.current = job.get("title", jid)
-                result = run_ocr(store.media_path(jid, job["original"]), device=device, merge_lines=merge_lines)
+                result = run_ocr(store.source_image(jid, job), device=device, merge_lines=merge_lines)
                 job = store.load(jid)
                 job["ocr"] = result.to_dict()
                 job.pop("error", None)

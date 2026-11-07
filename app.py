@@ -19,6 +19,7 @@ from kobun import __version__
 from kobun import config as config_mod
 from kobun import jibo as jibo_mod
 from kobun import lines as lines_mod
+from kobun import source_match as source_mod
 from kobun import llm, pdf, worker
 from kobun.ocr_ndl import NdlLiteNotFound, looks_unreliable, run_ocr
 from kobun.store import Store
@@ -80,6 +81,11 @@ def ocr():
     direct = request.form.get("direct") == "on"
     try:
         job_id = st.create(tmp, file.filename, title=request.form.get("title", ""), context=request.form.get("context", ""))
+        if c.get("preprocess", True):
+            try:
+                st.make_enhanced(job_id)
+            except Exception:  # noqa: BLE001
+                pass
         job = st.load(job_id)
         if direct:
             # 書作品・散らし書き: OCR を飛ばして AI に画像から直接翻刻させる
@@ -87,7 +93,7 @@ def ocr():
             job["from_image"] = True
             st.save(job_id, job)
             return redirect(url_for("annotate_job_direct", job_id=job_id))
-        result = run_ocr(st.media_path(job_id, job["original"]), device=c["device"], merge_lines=c.get("merge_lines", False))
+        result = run_ocr(st.source_image(job_id, job), device=c["device"], merge_lines=c.get("merge_lines", False))
     except NdlLiteNotFound as e:
         return render_template("error.html", message=str(e)), 500
     except Exception as e:  # noqa: BLE001
@@ -111,7 +117,13 @@ def ocr_pdf(tmp: Path, filename: str, st: Store, c: dict):
         group = uuid.uuid4().hex[:12]
         job_ids = []
         for p, im in pdf.render_pages(tmp, pages):
-            job_ids.append(st.create_from_image(im, f"{title} p.{p}", group, p, total, filename, context))
+            jid = st.create_from_image(im, f"{title} p.{p}", group, p, total, filename, context)
+            if c.get("preprocess", True):
+                try:
+                    st.make_enhanced(jid)
+                except Exception:  # noqa: BLE001
+                    pass
+            job_ids.append(jid)
     except Exception as e:  # noqa: BLE001
         return render_template("error.html", message=f"PDF を読み込めませんでした: {e}"), 500
     finally:
@@ -258,7 +270,10 @@ def reocr_job(job_id):
         abort(404)
     c = cfg()
     try:
-        result = run_ocr(st.media_path(job_id, job["original"]), device=c["device"], merge_lines=c.get("merge_lines", True))
+        if c.get("preprocess", True) and not job.get("enhanced"):
+            st.make_enhanced(job_id)
+            job = st.load(job_id)
+        result = run_ocr(st.source_image(job_id, job), device=c["device"], merge_lines=c.get("merge_lines", False))
     except Exception as e:  # noqa: BLE001
         return render_template("error.html", message=f"OCRに失敗しました: {e}"), 500
     job["ocr"] = result.to_dict()
@@ -315,6 +330,62 @@ def annotate_job(job_id):
         except Exception as e:  # noqa: BLE001
             flash(f"本文は保存しましたが、字母の判定に失敗しました: {e}")
     return redirect(url_for("review", job_id=job_id))
+
+
+@app.post("/job/<job_id>/source")
+def source_match(job_id):
+    """典拠の照合。結果は job に保存し、画面で確認してから採用する。"""
+    st = store()
+    try:
+        job = st.load(job_id)
+    except KeyError:
+        abort(404)
+    honkoku = (job.get("annotation") or {}).get("honkoku") or (job.get("ocr") or {}).get("text", "")
+    if not honkoku.strip():
+        flash("先に翻刻（OCR か現代語訳の作成）が必要です")
+        return redirect(url_for("review", job_id=job_id))
+    c = cfg()
+    provider, model, key = config_mod.active(c)
+    if not key:
+        flash(f"{llm.PROVIDERS[provider]['label']} の API キーが未設定です（設定から入力）")
+        return redirect(url_for("review", job_id=job_id))
+    try:
+        m = source_mod.match(honkoku, st.source_image(job_id, job) if c["send_image"] else None, job.get("context", ""),
+                             provider, model, c.get("effort", "high"), key)
+    except Exception as e:  # noqa: BLE001
+        return render_template("error.html", message=f"典拠の照合に失敗しました: {e}"), 500
+    job["source_match"] = m.to_dict()
+    st.save(job_id, job)
+    flash("典拠を照合しました。翻刻タブで結果を確認してください" if m.matched else "既知の作品には一致しませんでした（AI の判断）")
+    return redirect(url_for("review", job_id=job_id) + "#source")
+
+
+@app.post("/job/<job_id>/source/apply")
+def source_apply(job_id):
+    """典拠を手がかりに読み直した翻刻を確定稿として採用し、現代語訳を作り直す。"""
+    st = store()
+    try:
+        job = st.load(job_id)
+    except KeyError:
+        abort(404)
+    m = job.get("source_match") or {}
+    if not m.get("reread", "").strip():
+        flash("採用できる読み直しがありません")
+        return redirect(url_for("review", job_id=job_id))
+    if not job.get("annotation"):
+        job["annotation"] = {"honkoku": "", "corrections": [], "gendaigo": "", "annotations": [], "uncertain": [], "summary": "", "era_guess": "",
+                             "model": "", "input_tokens": 0, "output_tokens": 0}
+    job["annotation"]["honkoku"] = m["reread"].strip("\n")
+    job["annotation"]["corrections"] = []
+    job["edited_honkoku"] = job["annotation"]["honkoku"]
+    job["honkoku_fixed"] = True
+    job["translation_stale"] = True
+    # 典拠は補足情報として以後の AI 呼び出しにも渡す
+    note = f"典拠: {m.get('title', '')}（{m.get('author', '')}）"
+    if note not in (job.get("context") or ""):
+        job["context"] = ((job.get("context") or "") + "\n" + note).strip()
+    st.save(job_id, job)
+    return redirect(url_for("retranslate", job_id=job_id), code=307)
 
 
 @app.post("/job/<job_id>/honkoku")
@@ -456,7 +527,7 @@ def read_lines(job_id):
         return redirect(url_for("review", job_id=job_id))
     engine = request.form.get("engine", "ai")
     c = cfg()
-    img = st.media_path(job_id, job["original"])
+    img = st.source_image(job_id, job)
     try:
         hints = lines_mod.ocr_read_boxes(img, boxes, c["device"]) if engine in ("ocr", "both") else None
         if engine == "ocr":
@@ -615,6 +686,7 @@ def settings_save():
     c["carry_context"] = request.form.get("carry_context") == "on"
     c["jibo_pass"] = request.form.get("jibo_pass") == "on"
     c["merge_lines"] = request.form.get("merge_lines") == "on"
+    c["preprocess"] = request.form.get("preprocess") == "on"
     c["auto_check_updates"] = request.form.get("auto_check_updates") == "on"
     new_dir = request.form.get("data_dir", "").strip() or old_dir
     moved = 0

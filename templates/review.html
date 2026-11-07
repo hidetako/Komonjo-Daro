@@ -32,6 +32,7 @@
       <label class="sub">拡大 <input type="range" id="zoom" min="50" max="200" value="100" step="10"></label>
       <span class="sub" id="zoom-val">100%</span>
       <a class="sub" href="{{ url_for('media', job_id=job_id, name=job.original) }}" target="_blank">原寸で開く</a>
+      {% if job.enhanced %}<button type="button" class="secondary" id="img-toggle" style="padding:3px 8px; font-size:12px" title="OCR と AI に渡している補正画像（影・傾き・薄さを補正）を表示">補正画像</button>{% endif %}
     </div>
     <div class="viewer" id="viewer">
       <div id="stage" style="position:relative; display:inline-block">
@@ -96,6 +97,24 @@
             <button type="button" class="secondary" id="hk-cancel">取り消し</button>
           </p>
         </form>
+        <div id="source" class="tab-note" style="margin-top:14px; border-top:1px solid var(--line); padding-top:10px">
+          {% set sm = job.source_match %}
+          <div class="toolbar"><span class="sub"><strong>典拠の照合</strong>　既知の和歌・詩文なら原典を手がかりに読み直す（書作品に有効）</span><span style="flex:1"></span>
+            <form method="post" action="{{ url_for('source_match', job_id=job_id) }}" data-busy="典拠を照合しています（数十秒）…"><button type="submit" class="secondary" style="padding:3px 10px; font-size:13px">典拠を照合</button></form></div>
+          {% if sm %}
+            {% if sm.matched %}
+            <div class="card" style="margin:8px 0 0; background:#fbf7ee">
+              <p style="margin:0"><strong>{{ sm.title }}</strong>{% if sm.author %}　{{ sm.author }}{% endif %}　<span class="sub">確信度: {{ sm.confidence }}</span></p>
+              <p class="sub" style="margin:4px 0 0">根拠: {{ sm.reason }}</p>
+              <p class="sub" style="margin:8px 0 2px">原典本文</p><pre class="text" style="font-size:14px; white-space:pre-wrap">{{ sm.source_text }}</pre>
+              <p class="sub" style="margin:8px 0 2px">原典を手がかりに読み直した翻刻（画像優先、相違は〔 〕）</p><pre class="text" style="font-size:14px; white-space:pre-wrap">{{ sm.reread }}</pre>
+              <form method="post" action="{{ url_for('source_apply', job_id=job_id) }}" style="margin-top:8px" data-busy="読み直した翻刻を確定し、現代語訳を作り直しています（数十秒）…">
+                <button type="submit">この翻刻を採用して現代語訳を作り直す ▶</button>
+                <span class="sub">　AI の推定です。原典と画像を見比べて納得してから採用してください</span></form>
+            </div>
+            {% else %}<p class="sub" style="margin:6px 0 0">前回の照合: 既知の作品には一致しませんでした{% if sm.reason %}（{{ sm.reason }}）{% endif %}</p>{% endif %}
+          {% endif %}
+        </div>
       {% else %}
         {% if unreliable %}
         <div class="err tab-note" style="margin:0 0 10px">OCR がこの資料を読めていないようです（記号の連続や極端に短い行が多い）。散らし書き・書作品・写真は OCR の学習範囲外です。
@@ -298,6 +317,10 @@
     zoom.addEventListener('input', () => { if (editing) render(); });
     {% if job.manual_lines %}readBox.style.display = '';{% endif %}
   })();
+
+  // 原本／補正画像の切替
+  const it = document.getElementById('img-toggle');
+  if (it) { const orig = img.src, enh = '{{ url_for('media', job_id=job_id, name='enhanced.jpg') }}'; it.addEventListener('click', () => { const on = img.src.endsWith('enhanced.jpg'); img.src = on ? orig : enh; it.classList.toggle('active', !on); }); }
 
   // 翻刻・訳文の編集フォームの開閉
   for (const [btn, form, view, cancel] of [['hk-edit','hk-form','hk','hk-cancel'], ['gd-edit','gd-form','gd','gd-cancel']]) {

@@ -113,9 +113,27 @@ class Store:
         shutil.rmtree(self.job_dir(job_id), ignore_errors=True)
 
     def media_path(self, job_id: str, name: str) -> Path:
-        if name not in ("preview.jpg", "thumb.jpg") and not name.startswith("original."):
+        if name not in ("preview.jpg", "thumb.jpg", "enhanced.jpg") and not name.startswith("original."):
             raise KeyError(name)
         return self.job_dir(job_id) / name
+
+    def source_image(self, job_id: str, job: dict | None = None) -> Path:
+        """OCR・AI に渡す画像。補正画像があればそれ、無ければ原本。"""
+        job = job or self.load(job_id)
+        e = self.job_dir(job_id) / "enhanced.jpg"
+        return e if job.get("enhanced") and e.exists() else self.job_dir(job_id) / job["original"]
+
+    def make_enhanced(self, job_id: str) -> dict:
+        """原本から補正画像を作って job に記録する。"""
+        from .preprocess import enhance
+
+        job = self.load(job_id)
+        d = self.job_dir(job_id)
+        info = enhance(d / job["original"], d / "enhanced.jpg")
+        job["enhanced"] = True
+        job["enhance_angle"] = info["angle"]
+        self.save(job_id, job)
+        return info
 
     # --- 一覧・検索 ---
     def list(self, query: str = "", only_annotated: bool = False) -> list[JobSummary]:
