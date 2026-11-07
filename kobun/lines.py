@@ -8,13 +8,18 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageDraw, ImageOps
 
 from . import llm
 from .jibo import LINES_PER_CALL, crop_line, encode
 
+OVERVIEW_EDGE = 1568   # 全体図の長辺上限
+
 SYSTEM = """あなたは日本の古典籍・古文書・書作品（仮名書道、散らし書き、連綿体）の翻刻者です。
-行ごとに切り出した画像が与えられます。各行の文字を、原文どおりに翻刻してください。
+最初に作品全体の画像（赤枠と番号が各行の位置）、続いて行ごとに切り出した画像が与えられます。
+各行の文字を、原文どおりに翻刻してください。全体図は、行の前後関係・散らし書きの続き具合・
+作品全体が何の文章かを把握するための参考です。文脈が分かっても、各行の切り出し画像で字形が
+確認できる文字だけを書いてください。
 
 規則:
 - 変体仮名は現行の平仮名に直す。漢字はそのまま。踊り字（ゝ、〳〵）はそのまま書く。
@@ -85,11 +90,38 @@ def ocr_read_boxes(image_path: str | Path, boxes: list[dict], device: str = "cpu
     return out
 
 
+def overview_image(im: Image.Image, boxes: list[dict]) -> Image.Image:
+    """全体図: 長辺 OVERVIEW_EDGE 以下に縮小し、各枠を赤線と番号で描き込む（番号は縮小後の大きさで描く）。"""
+    from PIL import ImageFont
+
+    ov = im.copy()
+    ov.thumbnail((OVERVIEW_EDGE, OVERVIEW_EDGE))
+    k = ov.width / im.width
+    d = ImageDraw.Draw(ov)
+    lw = max(2, min(ov.size) // 250)
+    fs = max(16, min(ov.size) // 20)
+    try:
+        font = ImageFont.load_default(size=fs)
+    except Exception:  # noqa: BLE001  古い Pillow
+        font = ImageFont.load_default()
+    for i, b in enumerate(boxes):
+        x0, y0, x1, y1 = b["x"] * k, b["y"] * k, (b["x"] + b["w"]) * k, (b["y"] + b["h"]) * k
+        d.rectangle([x0, y0, x1, y1], outline=(200, 30, 30), width=lw)
+        tag = str(i + 1)
+        tx0, ty0, tx1, ty1 = d.textbbox((0, 0), tag, font=font)
+        tw, th = tx1 - tx0 + lw * 2, ty1 - ty0 + lw * 2
+        ly = y0 - th if y0 - th >= 0 else y0
+        d.rectangle([x0, ly, x0 + tw, ly + th], fill=(200, 30, 30))
+        d.text((x0 + lw - tx0, ly + lw - ty0), tag, fill=(255, 255, 255), font=font)
+    return ov
+
+
 def ai_read_boxes(image_path: str | Path, boxes: list[dict], provider: str, model: str, effort: str, api_key: str,
-                  hints: list[str] | None = None, client=None) -> tuple[list[str], int, int]:
-    """各枠の切り出しを数行ずつ AI に渡して翻刻する。hints は OCR 候補（任意）。"""
+                  hints: list[str] | None = None, client=None, context: str = "") -> tuple[list[str], int, int]:
+    """各枠の切り出しを数行ずつ AI に渡して翻刻する。全体図を毎回添える。hints は OCR 候補（任意）。"""
     with Image.open(image_path) as src:
         im = ImageOps.exif_transpose(src).convert("RGB")
+        ov_b64, ov_media = encode(overview_image(im, boxes))
         items = []
         for i, b in enumerate(boxes):
             b64, media = encode(crop_line(im, b))
@@ -98,7 +130,10 @@ def ai_read_boxes(image_path: str | Path, boxes: list[dict], provider: str, mode
     tin = tout = 0
     for s in range(0, len(items), LINES_PER_CALL):
         batch = items[s:s + LINES_PER_CALL]
-        parts: list[tuple] = [("text", "以下の各行の画像を翻刻してください。")]
+        parts: list[tuple] = [("text", f"作品全体（赤枠と番号は各行の位置。全 {len(items)} 行）:"), ("image", (ov_b64, ov_media))]
+        if context.strip():
+            parts.append(("text", "資料についての情報（利用者による）: " + context.strip()))
+        parts.append(("text", "以下の各行の画像を翻刻してください。"))
         for n, b64, media, hint in batch:
             parts.append(("text", f"行{n}" + (f"（OCR候補: {hint}）" if hint else "")))
             parts.append(("image", (b64, media)))

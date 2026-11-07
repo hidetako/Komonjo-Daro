@@ -37,11 +37,24 @@ def test_ai_read_boxes_with_hints(tmp_path):
     p = tmp_path / "p.jpg"; Image.new("RGB", (800, 600), "white").save(p)
     boxes = [{"x": 700 - 60 * i, "y": 50, "w": 40, "h": 500} for i in range(8)]
     fake = FakeAnthropic()
-    texts, tin, tout = lines.ai_read_boxes(p, boxes, "anthropic", "claude-opus-5-5", "high", "k", hints=["候補A"] + [""] * 7, client=fake)
+    texts, tin, tout = lines.ai_read_boxes(p, boxes, "anthropic", "claude-opus-5-5", "high", "k", hints=["候補A"] + [""] * 7, client=fake, context="紅梅巻の歌")
     assert texts == [f"読み{i}" for i in range(1, 9)] and len(fake.calls) == 2
     first = fake.calls[0]["messages"][0]["content"]
     assert any(b["type"] == "text" and "OCR候補: 候補A" in b["text"] for b in first)
     assert "翻刻者" in fake.calls[0]["system"][0]["text"]
+    # 全体図が各呼び出しの先頭に付き、行の切り出しはその後に続く（1 回目: 全体図 1 + 行 6）
+    imgs = [b for b in first if b["type"] == "image"]
+    assert len(imgs) == 7 and first[0]["type"] == "text" and "作品全体" in first[0]["text"] and first[1]["type"] == "image"
+    assert any(b["type"] == "text" and "紅梅巻の歌" in b["text"] for b in first)
+    assert len([b for b in fake.calls[1]["messages"][0]["content"] if b["type"] == "image"]) == 3
+
+
+def test_overview_image_marks_boxes():
+    im = Image.new("RGB", (800, 600), "white")
+    ov = lines.overview_image(im, [{"x": 100, "y": 50, "w": 40, "h": 500}])
+    assert ov.size == (800, 600) and ov.getpixel((100, 300)) != (255, 255, 255)   # 枠線が描かれている
+    big = lines.overview_image(Image.new("RGB", (4000, 1000), "white"), [])
+    assert max(big.size) == lines.OVERVIEW_EDGE
 
 
 def test_save_lines_route(tmp_path, monkeypatch):

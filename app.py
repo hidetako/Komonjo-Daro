@@ -537,7 +537,8 @@ def read_lines(job_id):
             if not key:
                 flash(f"{llm.PROVIDERS[provider]['label']} の API キーが未設定です（設定から入力）")
                 return redirect(url_for("review", job_id=job_id))
-            texts, _, _ = lines_mod.ai_read_boxes(img, boxes, provider, model, c.get("effort", "high"), key, hints=hints)
+            texts, _, _ = lines_mod.ai_read_boxes(img, boxes, provider, model, c.get("effort", "high"), key, hints=hints,
+                                                  context=job.get("context", "") or "")
     except Exception as e:  # noqa: BLE001
         return render_template("error.html", message=f"行の読み取りに失敗しました: {e}"), 500
     for b, t in zip(boxes, texts):
