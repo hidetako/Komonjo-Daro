@@ -313,7 +313,10 @@
       const j = await r.json(); if (!j.ok) { alert('保存に失敗しました'); return; }
       stop(); readBox.style.display = ''; document.querySelector('#line-read .sub').textContent = `${j.count} 行の枠を保存しました。枠ごとに読む:`;
     });
-    img.addEventListener('load', render); window.addEventListener('resize', () => { if (editing) render(); });
+    // 画像の表示サイズが変わったら（スライダー / Ctrl+ホイール / レイアウト切替 / ブラウザ拡大）枠を描き直す
+    img.addEventListener('load', render);
+    if (window.ResizeObserver) { new ResizeObserver(() => { if (editing) render(); }).observe(img); }
+    else { window.addEventListener('resize', () => { if (editing) render(); }); zoom.addEventListener('input', () => { if (editing) render(); }); }
     zoom.addEventListener('input', () => { if (editing) render(); });
     {% if job.manual_lines %}readBox.style.display = '';{% endif %}
   })();
