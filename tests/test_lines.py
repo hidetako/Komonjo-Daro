@@ -14,6 +14,17 @@ def test_normalize_boxes_orders_right_to_left():
     assert lines.normalize_boxes([{"x": 590, "y": 0, "w": 100, "h": 50}], 600, 400)[0]["w"] == 10   # 画像内に丸める
 
 
+def test_normalize_boxes_manual_order():
+    # 散らし書き: 幾何学的には右→左だが、手で付けた order が優先される
+    bx = [{"x": 500, "y": 0, "w": 40, "h": 300, "order": 2}, {"x": 250, "y": 0, "w": 35, "h": 250, "order": 1}, {"x": 10, "y": 5, "w": 30, "h": 200, "order": 3}]
+    out = lines.normalize_boxes(bx, 600, 400)
+    assert [b["x"] for b in out] == [250, 500, 10] and [b["order"] for b in out] == [1, 2, 3]
+    # 一部にしか order が無ければ自動順に戻し、order は残さない
+    bx[2].pop("order")
+    out = lines.normalize_boxes(bx, 600, 400)
+    assert [b["x"] for b in out] == [500, 250, 10] and all("order" not in b for b in out)
+
+
 class FakeAnthropic:
     def __init__(self):
         self.messages = self; self.calls = []

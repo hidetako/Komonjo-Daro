@@ -41,8 +41,10 @@
       </div>
     </div>
     <div id="line-tools" class="toolbar tab-note" style="margin-top:8px; display:none; gap:6px">
-      <span class="sub">枠をドラッグで描く／枠をドラッグで移動／右下の角で大きさ変更／クリックで選択、Delete で削除</span>
+      <span class="sub" id="ln-hint">枠をドラッグで描く／枠をドラッグで移動／右下の角で大きさ変更／クリックで選択、Delete で削除</span>
       <span style="flex:1"></span>
+      <button type="button" class="secondary" id="ln-order" title="散らし書きなど、右から左の順と読む順が違うとき。枠を読む順にクリックして番号を付ける">読み順を指定</button>
+      <button type="button" class="secondary" id="ln-order-reset" title="手で付けた読み順を消し、右から左の自動順に戻す" style="display:none">自動順に戻す</button>
       <button type="button" class="secondary" id="ln-merge" title="選択中の2つ以上の枠を1つにまとめる">結合</button>
       <button type="button" class="secondary" id="ln-delete">削除</button>
       <button type="button" class="secondary" id="ln-clear">全消去</button>
@@ -267,23 +269,49 @@
     const natW = {{ job.ocr.width if job.ocr and job.ocr.width else 0 }}, natH = {{ job.ocr.height if job.ocr and job.ocr.height else 0 }};
     let boxes = [], selected = new Set(), editing = false;
     const scale = () => (natW ? img.clientWidth / natW : img.clientWidth / img.naturalWidth);
+    // 読み順: すべての枠に order があればその順、無ければ右→左（縦書き）の自動順
+    const hasOrder = () => boxes.length > 0 && boxes.every(b => Number.isInteger(b.order));
+    function ranks(){
+      const idx = boxes.map((b, i) => i);
+      if (hasOrder()) idx.sort((a, b) => boxes[a].order - boxes[b].order);
+      else idx.sort((a, b) => (boxes[b].x + boxes[b].w/2) - (boxes[a].x + boxes[a].w/2));
+      const r = {}; idx.forEach((i, n) => r[i] = n + 1); return r;
+    }
+    let ordering = null;   // 読み順の指定中: { next: 次に付ける番号 }
+    const hint = document.getElementById('ln-hint'), hintDefault = hint.textContent;
+    const orderResetBtn = document.getElementById('ln-order-reset');
     function render(){
-      ov.innerHTML = ''; const k = scale();
-      const order = boxes.map((b, i) => i).sort((a, b) => (boxes[b].x + boxes[b].w/2) - (boxes[a].x + boxes[a].w/2));
-      order.forEach((i, rank) => {
-        const b = boxes[i]; const d = document.createElement('div'); d.className = 'lbox' + (selected.has(i) ? ' sel' : ''); d.dataset.i = i;
+      ov.innerHTML = ''; const k = scale(); const rk = ranks();
+      boxes.forEach((b, i) => {
+        const d = document.createElement('div'); d.className = 'lbox' + (selected.has(i) ? ' sel' : '') + (ordering && !Number.isInteger(b.order) ? ' todo' : ''); d.dataset.i = i;
         d.style.cssText = `left:${b.x*k}px; top:${b.y*k}px; width:${b.w*k}px; height:${b.h*k}px`;
-        d.innerHTML = `<span class="lnum">${rank+1}</span><span class="lhandle"></span>`; ov.appendChild(d);
+        const label = ordering ? (Number.isInteger(b.order) ? b.order : '?') : rk[i];
+        d.innerHTML = `<span class="lnum">${label}</span><span class="lhandle"></span>`; ov.appendChild(d);
       });
+      orderResetBtn.style.display = hasOrder() && !ordering ? '' : 'none';
+    }
+    function startOrdering(){
+      if (!boxes.length) return;
+      boxes.forEach(b => { delete b.order; }); ordering = { next: 1 }; selected = new Set();
+      hint.textContent = `枠を読む順にクリックしてください（${boxes.length} 枠）。Esc で中止`; ov.style.cursor = 'pointer'; render();
+    }
+    function stopOrdering(cancel){
+      if (!ordering) return;
+      if (cancel) boxes.forEach(b => { delete b.order; });
+      ordering = null; hint.textContent = hintDefault; ov.style.cursor = 'crosshair'; render();
     }
     function toImg(e){ const r = ov.getBoundingClientRect(), k = scale(); return { x: (e.clientX - r.left)/k, y: (e.clientY - r.top)/k }; }
     let drag = null;
     ov.addEventListener('mousedown', e => {
       if (!editing) return; e.preventDefault();
       const box = e.target.closest('.lbox'); const p = toImg(e);
+      if (ordering) {
+        if (box) { const b = boxes[+box.dataset.i]; if (!Number.isInteger(b.order)) { b.order = ordering.next++; if (ordering.next > boxes.length) { stopOrdering(false); return; } render(); } }
+        return;
+      }
       if (box && e.target.classList.contains('lhandle')) { drag = { mode:'resize', i:+box.dataset.i, p }; }
       else if (box) { const i = +box.dataset.i; if (!e.shiftKey) { selected = new Set([i]); } else { selected.has(i) ? selected.delete(i) : selected.add(i); } drag = { mode:'move', i, p, start:{...boxes[i]} }; render(); }
-      else { selected = new Set(); boxes.push({x:p.x, y:p.y, w:1, h:1, text:''}); drag = { mode:'create', i: boxes.length-1, p }; render(); }
+      else { selected = new Set(); if (hasOrder()) boxes.forEach(b => { delete b.order; }); boxes.push({x:p.x, y:p.y, w:1, h:1, text:''}); drag = { mode:'create', i: boxes.length-1, p }; render(); }
     });
     window.addEventListener('mousemove', e => {
       if (!drag) return; const p = toImg(e), b = boxes[drag.i];
@@ -293,22 +321,26 @@
       render();
     });
     window.addEventListener('mouseup', () => { if (drag && drag.mode === 'create') { const b = boxes[drag.i]; if (b.w < 4 || b.h < 4) boxes.splice(drag.i, 1); else selected = new Set([drag.i]); render(); } drag = null; });
-    document.addEventListener('keydown', e => { if (editing && (e.key === 'Delete' || e.key === 'Backspace') && selected.size && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') { e.preventDefault(); delSel(); } });
-    function delSel(){ boxes = boxes.filter((b, i) => !selected.has(i)); selected = new Set(); render(); }
-    function start(){ editing = true; boxes = ocrLines.map(l => ({x:l.x, y:l.y, w:l.w, h:l.h, text:l.text||''})); selected = new Set(); ov.style.display = ''; tools.style.display = 'flex'; readBox.style.display = 'none'; ov.style.cursor = 'crosshair'; render(); }
-    function stop(){ editing = false; ov.style.display = 'none'; tools.style.display = 'none'; }
+    document.addEventListener('keydown', e => { if (ordering && e.key === 'Escape') { stopOrdering(true); return; } if (editing && (e.key === 'Delete' || e.key === 'Backspace') && selected.size && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') { e.preventDefault(); delSel(); } });
+    function renumber(){ if (boxes.some(b => Number.isInteger(b.order))) { const sorted = boxes.filter(b => Number.isInteger(b.order)).sort((a, b) => a.order - b.order); sorted.forEach((b, n) => b.order = n + 1); if (sorted.length !== boxes.length) boxes.forEach(b => { delete b.order; }); } }
+    function delSel(){ boxes = boxes.filter((b, i) => !selected.has(i)); selected = new Set(); renumber(); render(); }
+    function start(){ ordering = null; hint.textContent = hintDefault; editing = true; boxes = ocrLines.map(l => ({x:l.x, y:l.y, w:l.w, h:l.h, text:l.text||'', ...(Number.isInteger(l.order) ? {order:l.order} : {})})); selected = new Set(); ov.style.display = ''; tools.style.display = 'flex'; readBox.style.display = 'none'; ov.style.cursor = 'crosshair'; render(); }
+    function stop(){ stopOrdering(true); editing = false; ov.style.display = 'none'; tools.style.display = 'none'; }
+    document.getElementById('ln-order').addEventListener('click', startOrdering);
+    orderResetBtn.addEventListener('click', () => { boxes.forEach(b => { delete b.order; }); render(); });
     document.getElementById('ln-edit').addEventListener('click', start);
     document.getElementById('ln-cancel').addEventListener('click', stop);
     document.getElementById('ln-delete').addEventListener('click', delSel);
-    document.getElementById('ln-clear').addEventListener('click', () => { boxes = []; selected = new Set(); render(); });
+    document.getElementById('ln-clear').addEventListener('click', () => { stopOrdering(true); boxes = []; selected = new Set(); render(); });
     document.getElementById('ln-reset').addEventListener('click', start);
     document.getElementById('ln-merge').addEventListener('click', () => {
       if (selected.size < 2) { alert('Shift+クリックで2つ以上の枠を選んでから押してください'); return; }
       const sel = [...selected].map(i => boxes[i]); const x0 = Math.min(...sel.map(b => b.x)), y0 = Math.min(...sel.map(b => b.y));
       const x1 = Math.max(...sel.map(b => b.x + b.w)), y1 = Math.max(...sel.map(b => b.y + b.h));
-      boxes = boxes.filter((b, i) => !selected.has(i)); boxes.push({x:x0, y:y0, w:x1-x0, h:y1-y0, text:''}); selected = new Set([boxes.length-1]); render();
+      boxes = boxes.filter((b, i) => !selected.has(i)); boxes.forEach(b => { delete b.order; }); boxes.push({x:x0, y:y0, w:x1-x0, h:y1-y0, text:''}); selected = new Set([boxes.length-1]); render();
     });
     document.getElementById('ln-save').addEventListener('click', async () => {
+      if (ordering) { alert('読み順の指定が途中です。すべての枠をクリックするか、Esc で中止してください'); return; }
       const r = await fetch('{{ url_for('save_lines', job_id=job_id) }}', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({lines: boxes, ref: {w: natW || img.naturalWidth, h: natH || img.naturalHeight}})});
       const j = await r.json(); if (!j.ok) { alert('保存に失敗しました'); return; }
       stop(); readBox.style.display = ''; document.querySelector('#line-read .sub').textContent = `${j.count} 行の枠を保存しました。枠ごとに読む:`;

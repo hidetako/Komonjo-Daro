@@ -49,7 +49,11 @@ SCHEMA = {
 
 
 def normalize_boxes(boxes: list[dict], width: int, height: int) -> list[dict]:
-    """画面から来た枠を整数・画像内に丸め、読み順（縦書き: 右→左、横書き: 上→下）に並べる。"""
+    """画面から来た枠を整数・画像内に丸め、読み順に並べる。
+
+    すべての枠に order（手で付けた読み順）があればその順。無ければ縦書きは右→左、横書きは上→下。
+    散らし書きは右→左の幾何学的な順と読む順が一致しないので、手動の順を優先する。
+    """
     out = []
     for b in boxes:
         x, y = max(0, int(round(float(b.get("x", 0))))), max(0, int(round(float(b.get("y", 0)))))
@@ -59,12 +63,22 @@ def normalize_boxes(boxes: list[dict], width: int, height: int) -> list[dict]:
         if height:
             h = min(h, height - y)
         if w >= 4 and h >= 4:
-            out.append({"x": x, "y": y, "w": w, "h": h, "text": str(b.get("text", "") or "")})
-    vertical = sum(1 for b in out if b["h"] > b["w"]) * 2 >= max(1, len(out))
-    out.sort(key=(lambda b: -(b["x"] + b["w"] / 2)) if vertical else (lambda b: b["y"] + b["h"] / 2))
+            nb = {"x": x, "y": y, "w": w, "h": h, "text": str(b.get("text", "") or "")}
+            if isinstance(b.get("order"), int) and not isinstance(b.get("order"), bool):
+                nb["order"] = b["order"]
+            out.append(nb)
+    if out and all("order" in b for b in out):
+        out.sort(key=lambda b: b["order"])
+    else:
+        for b in out:
+            b.pop("order", None)
+        vertical = sum(1 for b in out if b["h"] > b["w"]) * 2 >= max(1, len(out))
+        out.sort(key=(lambda b: -(b["x"] + b["w"] / 2)) if vertical else (lambda b: b["y"] + b["h"] / 2))
     for i, b in enumerate(out):
         b["id"] = i
         b["confidence"] = 1.0
+        if "order" in b:
+            b["order"] = i + 1
     return out
 
 
