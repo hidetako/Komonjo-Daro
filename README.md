@@ -43,8 +43,8 @@ Komonjo-Daro/
 
 ```bash
 # kobun/__init__.py の __version__ を上げてコミットしてから
-git tag v0.10.2
-git push origin v0.10.2
+git tag v0.10.3
+git push origin v0.10.3
 ```
 GitHub Actions（`.github/workflows/release.yml`）が Windows でビルドし、Release に `Komonjo-Daro-Setup.exe` を添付する。
 タグとソースのバージョンが違うとビルドは失敗する。ローカルで作るなら `packaging\build.ps1`（Inno Setup 6 が必要）。
@@ -125,7 +125,7 @@ Dockerfile 内で NDL-Lite を clone するので vendor の手動取得は不�
 - **タブ**: 翻刻 / 現代語訳 / 注釈 / 修正・不確実（OCRからの修正と根拠、判読が怪しい箇所）/ 要約 / 再実行。
 - **再実行**: OCR テキストを手で直してから Claude に送り直せる。画像同送のチェックを外すと費用が下がる。
 - **縦書き**: 翻刻タブのボタンで縦書き表示に切替。
-- **Markdown**: 右上のボタンで校訂翻刻・現代語訳・注釈をまとめて取得（Evernote 等に貼る用）。
+- **Markdown で開く**: 校訂翻刻・現代語訳・注釈・字母を `保存フォルダ\exports\<タイトル>.md` に書き出し、その PC で .md に関連付けたアプリ（MD Viewer など）で開く。「保存」はブラウザ経由のダウンロード。
 
 ## CLI
 

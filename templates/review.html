@@ -16,7 +16,8 @@
     <button type="button" data-writing="vertical" title="原典に合わせて縦書き">縦</button>
     <button type="button" data-writing="horizontal">横</button>
   </span>
-  {% if job.annotation %}<a class="btn secondary" href="{{ url_for('markdown', job_id=job_id) }}">Markdown</a>{% endif %}
+  {% if job.annotation %}<form method="post" action="{{ url_for('markdown_open', job_id=job_id) }}" style="display:inline"><button type="submit" class="secondary" title="保存フォルダの exports に書き出し、この PC の Markdown アプリで開く">Markdown で開く</button></form>
+  <a class="sub" href="{{ url_for('markdown', job_id=job_id) }}" title="ファイルとしてダウンロード">保存</a>{% endif %}
 {% endblock %}
 {% block body %}
 {% set a = job.annotation %}

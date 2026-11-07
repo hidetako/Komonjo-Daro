@@ -176,13 +176,9 @@ def doc_delete(group):
     return redirect(url_for("jobs"))
 
 
-@app.get("/doc/<group>/markdown")
-def doc_markdown(group):
+def doc_markdown_text(pages: list[dict]) -> tuple[str, str]:
     from kobun.annotate import Annotation
 
-    pages = store().list_group(group)
-    if not pages:
-        abort(404)
     title = pages[0]["title"].rsplit(" p.", 1)[0]
     out = [f"# {title}", ""]
     for j in pages:
@@ -194,7 +190,33 @@ def doc_markdown(group):
             out += ["### 翻刻（OCR生）", "", j["ocr"]["text"], ""]
         else:
             out += ["（OCR 未完了）", ""]
-    return "\n".join(out), 200, {"Content-Type": "text/markdown; charset=utf-8"}
+    return title, "\n".join(out)
+
+
+@app.get("/doc/<group>/markdown")
+def doc_markdown(group):
+    pages = store().list_group(group)
+    if not pages:
+        abort(404)
+    title, md = doc_markdown_text(pages)
+    return md, 200, {"Content-Type": "text/markdown; charset=utf-8",
+                     "Content-Disposition": f"attachment; filename*=UTF-8''{__import__('urllib.parse').parse.quote(title)}.md"}
+
+
+@app.post("/doc/<group>/markdown/open")
+def doc_markdown_open(group):
+    st = store()
+    pages = st.list_group(group)
+    if not pages:
+        abort(404)
+    title, md = doc_markdown_text(pages)
+    path = st.export_markdown(title, md)
+    try:
+        open_with_default_app(path)
+        flash(f"Markdown を保存して開きました: {path}")
+    except Exception as e:  # noqa: BLE001
+        flash(f"Markdown を保存しました（開けませんでした: {e}）: {path}")
+    return redirect(url_for("doc", group=group))
 
 
 # ---------- 一覧・検索 ----------
@@ -385,15 +407,46 @@ def annotate_job_direct(job_id):
     return render_template("direct.html", job_id=job_id, job=job)
 
 
-@app.get("/job/<job_id>/markdown")
-def markdown(job_id):
+def open_with_default_app(path: Path) -> None:
+    """その PC で拡張子に関連付けられたアプリ（.md なら MD Viewer など）で開く。"""
+    if sys.platform == "win32":
+        os.startfile(str(path))  # noqa: S606
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", str(path)])
+    else:
+        subprocess.Popen(["xdg-open", str(path)])
+
+
+def job_markdown(job: dict) -> str:
     from kobun.annotate import Annotation
 
+    return f"# {job['title']}\n\n" + Annotation(**job["annotation"]).to_markdown()
+
+
+@app.get("/job/<job_id>/markdown")
+def markdown(job_id):
+    """Markdown をダウンロード（ブラウザ経由。他の端末から使うとき用）。"""
     job = store().load(job_id)
     if "annotation" not in job:
         abort(404)
-    md = f"# {job['title']}\n\n" + Annotation(**job["annotation"]).to_markdown()
-    return md, 200, {"Content-Type": "text/markdown; charset=utf-8"}
+    return job_markdown(job), 200, {"Content-Type": "text/markdown; charset=utf-8",
+                                    "Content-Disposition": f"attachment; filename*=UTF-8''{__import__('urllib.parse').parse.quote(job['title'])}.md"}
+
+
+@app.post("/job/<job_id>/markdown/open")
+def markdown_open(job_id):
+    """Markdown を exports/ に書き出し、この PC の既定アプリで開く。"""
+    st = store()
+    job = st.load(job_id)
+    if "annotation" not in job:
+        abort(404)
+    path = st.export_markdown(job["title"], job_markdown(job))
+    try:
+        open_with_default_app(path)
+        flash(f"Markdown を保存して開きました: {path}")
+    except Exception as e:  # noqa: BLE001
+        flash(f"Markdown を保存しました（開けませんでした: {e}）: {path}")
+    return redirect(url_for("review", job_id=job_id))
 
 
 @app.get("/media/<job_id>/<name>")

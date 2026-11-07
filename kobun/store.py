@@ -141,6 +141,15 @@ class Store:
         out.sort(key=lambda j: j.created, reverse=True)
         return out
 
+    # --- Markdown 書き出し（data_dir/exports/<タイトル>.md） ---
+    def export_markdown(self, title: str, md: str) -> Path:
+        d = self.root / "exports"
+        d.mkdir(parents=True, exist_ok=True)
+        safe = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "_", title).strip() or "komonjo"
+        path = d / f"{safe[:80]}.md"
+        path.write_text(md, encoding="utf-8")
+        return path
+
     # --- 用語集（data_dir/glossary.json） ---
     @property
     def glossary_path(self) -> Path:
