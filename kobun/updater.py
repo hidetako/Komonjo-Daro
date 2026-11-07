@@ -30,7 +30,7 @@ def log_dir() -> Path:
 
 
 def log(msg: str) -> None:
-    """更新の経過を %LOCALAPPDATA%\Komonjo-Daro\update.log に残す（止まったときの診断用）。"""
+    """更新の経過を LOCALAPPDATA/Komonjo-Daro/update.log に残す（止まったときの診断用）。"""
     try:
         import time
         with open(log_dir() / "update.log", "a", encoding="utf-8") as f:
