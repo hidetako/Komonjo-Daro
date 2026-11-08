@@ -43,9 +43,10 @@ API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 @dataclass
 class ReleaseInfo:
     version: str
-    url: str          # インストーラーの直リンク
+    url: str          # インストーラーの直リンク（github.com/.../releases/download/...）
     notes: str
     page: str         # リリースページ
+    api_url: str = ""  # 同じ資産の API エンドポイント。直リンクが 5xx のときの代替経路
 
 
 def parse_version(v: str) -> tuple[int, ...]:
@@ -60,11 +61,12 @@ def is_newer(remote: str, local: str = __version__) -> bool:
 RETRY_WAITS = (3.0, 8.0)   # GitHub の一時的な 5xx（504 Gateway Time-out など）に備えて 2 回まで再試行
 
 
-def _open(req: urllib.request.Request, timeout: float, waits: tuple = RETRY_WAITS):
+def _open(req: urllib.request.Request, timeout: float, waits: tuple | None = None):
     """urlopen を 5xx・接続エラー・タイムアウトのときだけ再試行する。4xx はそのまま上げる。"""
     import time
     import urllib.error
 
+    waits = RETRY_WAITS if waits is None else waits
     for i, wait in enumerate((*waits, None)):
         try:
             return urllib.request.urlopen(req, timeout=timeout)
@@ -84,11 +86,33 @@ def fetch_latest(timeout: float = 8.0) -> ReleaseInfo | None:
     req = urllib.request.Request(API_URL, headers={"Accept": "application/vnd.github+json", "User-Agent": "Komonjo-Daro"})
     with _open(req, timeout) as r:
         data = json.loads(r.read().decode("utf-8"))
-    url = next((a["browser_download_url"] for a in data.get("assets", []) if a.get("name") == ASSET_NAME), "")
-    if not url:
+    asset = next((a for a in data.get("assets", []) if a.get("name") == ASSET_NAME), None)
+    if not asset or not asset.get("browser_download_url"):
         return None
-    return ReleaseInfo(version=data.get("tag_name", "").lstrip("v"), url=url,
-                       notes=data.get("body", "") or "", page=data.get("html_url", ""))
+    return ReleaseInfo(version=data.get("tag_name", "").lstrip("v"), url=asset["browser_download_url"],
+                       notes=data.get("body", "") or "", page=data.get("html_url", ""), api_url=asset.get("url", "") or "")
+
+
+def open_asset(info: ReleaseInfo, timeout: float = 60):
+    """インストーラーを開く。直リンクが 5xx を返し続けるときは API の資産エンドポイントに切り替える。
+
+    2026-11 に github.com/.../releases/download/ だけが 504 を返し、api.github.com 経由の取得は通る障害があった。
+    """
+    import urllib.error
+
+    req = urllib.request.Request(info.url, headers={"User-Agent": "Komonjo-Daro"})
+    try:
+        return _open(req, timeout)
+    except urllib.error.HTTPError as e:
+        if e.code < 500 or not info.api_url:
+            raise
+        log(f"直リンクが HTTP {e.code} のため API 経由に切り替え: {info.api_url}")
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        if not info.api_url:
+            raise
+        log(f"直リンクが {e} のため API 経由に切り替え: {info.api_url}")
+    req = urllib.request.Request(info.api_url, headers={"User-Agent": "Komonjo-Daro", "Accept": "application/octet-stream"})
+    return _open(req, timeout)
 
 
 class UpdateState:
@@ -158,8 +182,7 @@ def download_and_install(info: ReleaseInfo, on_progress=None) -> Path:
     if not (IS_FROZEN and sys.platform == "win32"):
         raise RuntimeError("自動更新はインストーラー版（Windows）でのみ使えます。開発版は git pull してください。")
     tmp = Path(tempfile.gettempdir()) / f"Komonjo-Daro-Setup-{info.version}.exe"
-    req = urllib.request.Request(info.url, headers={"User-Agent": "Komonjo-Daro"})
-    with _open(req, 60) as r, open(tmp, "wb") as f:
+    with open_asset(info, 60) as r, open(tmp, "wb") as f:
         total = int(r.headers.get("Content-Length") or 0)
         done = 0
         if on_progress:

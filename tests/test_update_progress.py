@@ -82,3 +82,42 @@ def test_open_retries_on_5xx_only(monkeypatch):
     with pytest.raises(urllib.error.HTTPError):
         updater._open(req, 1)
     assert calls["n"] == 3
+
+
+def test_open_asset_falls_back_to_api_on_5xx(monkeypatch):
+    import io
+    import urllib.error
+    import urllib.request
+    from kobun import updater
+
+    monkeypatch.setattr(updater, "RETRY_WAITS", (0.0,))
+    monkeypatch.setattr("time.sleep", lambda s: None)
+    seen = []
+
+    def fake(req, timeout=0):
+        seen.append((req.full_url, req.get_header("Accept")))
+        if "github.com/x/releases/download" in req.full_url:
+            raise urllib.error.HTTPError(req.full_url, 504, "Gateway Time-out", {}, io.BytesIO(b""))
+        return io.BytesIO(b"exe")
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake)
+    info = updater.ReleaseInfo(version="1", url="https://github.com/x/releases/download/v1/a.exe", notes="", page="",
+                               api_url="https://api.github.com/repos/x/releases/assets/1")
+    assert updater.open_asset(info, 1).read() == b"exe"
+    assert [u for u, _ in seen] == [info.url, info.url, info.api_url] and seen[-1][1] == "application/octet-stream"
+    # 代替経路が無ければそのまま失敗
+    import pytest
+    with pytest.raises(urllib.error.HTTPError):
+        updater.open_asset(updater.ReleaseInfo(version="1", url=info.url, notes="", page=""), 1)
+
+
+def test_fetch_latest_keeps_api_url(monkeypatch):
+    import io, json
+    import urllib.request
+    from kobun import updater
+
+    data = {"tag_name": "v9.9.9", "body": "n", "html_url": "p",
+            "assets": [{"name": "Komonjo-Daro-Setup.exe", "browser_download_url": "https://github.com/d", "url": "https://api.github.com/a"}]}
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=0: io.BytesIO(json.dumps(data).encode()))
+    info = updater.fetch_latest()
+    assert info.version == "9.9.9" and info.url == "https://github.com/d" and info.api_url == "https://api.github.com/a"
