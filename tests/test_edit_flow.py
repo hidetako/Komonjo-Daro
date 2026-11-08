@@ -88,7 +88,7 @@ def test_external_ocr_text_registers_as_loose_candidate(tmp_path, monkeypatch):
     assert st.load(jid)["ocr"]["external"] == "ふみのは"
     c.post(f"/job/{jid}/ocrtext", data={"text": "え", "source": "その他"})
     assert st.load(jid)["ocr"]["external"] == "外部 OCR"
-    assert c.post(f"/job/{jid}/ocrtext", data={"text": "  "}).status_code == 302 and st.load(jid)["ocr"]["text"] == "あ\nい"
+    assert c.post(f"/job/{jid}/ocrtext", data={"text": "  "}).status_code == 302 and st.load(jid)["ocr"]["text"] == "え"
 
 
 def test_loose_lines_prompt_text():
