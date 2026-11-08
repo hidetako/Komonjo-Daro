@@ -129,6 +129,12 @@
               <span class="sub">　AI の推定です。原典と画像を見比べて納得してから採用してください</span></form>
           </div>
           {% else %}<p class="sub" style="margin:6px 0 0">前回の照合: 既知の作品には一致しませんでした{% if sm.reason %}（{{ sm.reason }}）{% endif %}</p>{% endif %}
+          {% if sm.candidates %}
+          <details style="margin-top:6px"><summary class="sub" style="cursor:pointer">検討した候補（{{ sm.candidates|length }}）。合っていそうなものがあれば、その本文を「翻刻を編集」に貼って確定できます</summary>
+            <ul class="sub" style="margin:4px 0 0; padding-left:18px">
+            {% for cnd in sm.candidates %}<li style="margin:2px 0"><strong>{{ cnd.title }}</strong>{% if cnd.author %}　{{ cnd.author }}{% endif %}<br><span style="white-space:pre-wrap">{{ cnd.source_text }}</span><br><span style="color:var(--muted)">{{ cnd.fit }}</span></li>{% endfor %}
+            </ul></details>
+          {% endif %}
         {% endif %}
       </div>
       <details class="tab-note" style="margin-top:14px; border-top:1px solid var(--line); padding-top:10px"{% if job.ocr and job.ocr.external %} open{% endif %}>

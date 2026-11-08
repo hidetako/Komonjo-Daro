@@ -381,7 +381,9 @@ def source_match(job_id):
     except KeyError:
         abort(404)
     honkoku = (job.get("annotation") or {}).get("honkoku") or (job.get("ocr") or {}).get("text", "")
-    loose = not (job.get("annotation") or {}).get("honkoku") and bool((job.get("ocr") or {}).get("loose_lines"))
+    from_ocr = not (job.get("annotation") or {}).get("honkoku")
+    loose = from_ocr and bool((job.get("ocr") or {}).get("loose_lines"))
+    external = ((job.get("ocr") or {}).get("external") or "") if from_ocr else ""
     if not honkoku.strip():
         flash("先に翻刻（OCR か現代語訳の作成）が必要です")
         return redirect(url_for("review", job_id=job_id))
@@ -392,7 +394,7 @@ def source_match(job_id):
         return redirect(url_for("review", job_id=job_id))
     try:
         m = source_mod.match(honkoku, st.source_image(job_id, job) if c["send_image"] else None, job.get("context", ""),
-                             provider, model, c.get("effort", "high"), key, loose_lines=loose)
+                             provider, model, c.get("effort", "high"), key, loose_lines=loose, external=external)
     except Exception as e:  # noqa: BLE001
         return render_template("error.html", message=f"典拠の照合に失敗しました: {e}"), 500
     job["source_match"] = m.to_dict()
