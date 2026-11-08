@@ -65,7 +65,7 @@ class SourceMatch:
 
 
 def match(honkoku: str, image_path: str | Path | None, context: str, provider: str, model: str, effort: str,
-          api_key: str, client=None) -> SourceMatch:
+          api_key: str, client=None, loose_lines: bool = False) -> SourceMatch:
     parts: list[tuple] = []
     if image_path:
         parts.append(("image", encode_image(image_path)))
@@ -73,6 +73,9 @@ def match(honkoku: str, image_path: str | Path | None, context: str, provider: s
     if context.strip():
         text += f"資料についての補足情報:\n{context.strip()}\n\n"
     text += "荒い翻刻（誤読を含む）:\n" + honkoku.strip() + "\n\nこの文章の典拠を判定し、一致すれば原典を手がかりに読み直してください。"
+    if loose_lines:
+        text += ("\n注意: この翻刻は外部のくずし字認識アプリの結果で、改行は無いか信頼できません。文字の順序はおおむね画像の読み順です。"
+                 "reread は与えられた行構成に合わせず、画像の行に合わせて改行してください。")
     parts.append(("text", text))
     r = llm.call_parts(provider, model, effort, api_key, SYSTEM, parts, SCHEMA, client=client)
     data = json.loads(r.text)

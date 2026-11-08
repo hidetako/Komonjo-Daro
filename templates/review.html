@@ -99,24 +99,6 @@
             <button type="button" class="secondary" id="hk-cancel">取り消し</button>
           </p>
         </form>
-        <div id="source" class="tab-note" style="margin-top:14px; border-top:1px solid var(--line); padding-top:10px">
-          {% set sm = job.source_match %}
-          <div class="toolbar"><span class="sub"><strong>典拠の照合</strong>　既知の和歌・詩文なら原典を手がかりに読み直す（書作品に有効）</span><span style="flex:1"></span>
-            <form method="post" action="{{ url_for('source_match', job_id=job_id) }}" data-busy="典拠を照合しています（数十秒）…"><button type="submit" class="secondary" style="padding:3px 10px; font-size:13px">典拠を照合</button></form></div>
-          {% if sm %}
-            {% if sm.matched %}
-            <div class="card" style="margin:8px 0 0; background:#fbf7ee">
-              <p style="margin:0"><strong>{{ sm.title }}</strong>{% if sm.author %}　{{ sm.author }}{% endif %}　<span class="sub">確信度: {{ sm.confidence }}</span></p>
-              <p class="sub" style="margin:4px 0 0">根拠: {{ sm.reason }}</p>
-              <p class="sub" style="margin:8px 0 2px">原典本文</p><pre class="text" style="font-size:14px; white-space:pre-wrap">{{ sm.source_text }}</pre>
-              <p class="sub" style="margin:8px 0 2px">原典を手がかりに読み直した翻刻（画像優先、相違は〔 〕）</p><pre class="text" style="font-size:14px; white-space:pre-wrap">{{ sm.reread }}</pre>
-              <form method="post" action="{{ url_for('source_apply', job_id=job_id) }}" style="margin-top:8px" data-busy="読み直した翻刻を確定し、現代語訳を作り直しています（数十秒）…">
-                <button type="submit">この翻刻を採用して現代語訳を作り直す ▶</button>
-                <span class="sub">　AI の推定です。原典と画像を見比べて納得してから採用してください</span></form>
-            </div>
-            {% else %}<p class="sub" style="margin:6px 0 0">前回の照合: 既知の作品には一致しませんでした{% if sm.reason %}（{{ sm.reason }}）{% endif %}</p>{% endif %}
-          {% endif %}
-        </div>
       {% else %}
         {% if unreliable %}
         <div class="err tab-note" style="margin:0 0 10px">OCR がこの資料を読めていないようです（記号の連続や極端に短い行が多い）。散らし書き・書作品・写真は OCR の学習範囲外です。
@@ -131,6 +113,36 @@
         {% endif %}
         <pre class="text vtext">{{ job.ocr.text if job.ocr else '（OCR 未完了）' }}</pre>
       {% endif %}
+      <div id="source" class="tab-note" style="margin-top:14px; border-top:1px solid var(--line); padding-top:10px">
+        {% set sm = job.source_match %}
+        <div class="toolbar"><span class="sub"><strong>典拠の照合</strong>　既知の和歌・詩文なら原典を手がかりに読み直す（書作品に有効）{% if not a %}。いまは OCR 生テキストを入力にします{% endif %}</span><span style="flex:1"></span>
+          <form method="post" action="{{ url_for('source_match', job_id=job_id) }}" data-busy="典拠を照合しています（数十秒）…"><button type="submit" class="secondary" style="padding:3px 10px; font-size:13px">典拠を照合</button></form></div>
+        {% if sm %}
+          {% if sm.matched %}
+          <div class="card" style="margin:8px 0 0; background:#fbf7ee">
+            <p style="margin:0"><strong>{{ sm.title }}</strong>{% if sm.author %}　{{ sm.author }}{% endif %}　<span class="sub">確信度: {{ sm.confidence }}</span></p>
+            <p class="sub" style="margin:4px 0 0">根拠: {{ sm.reason }}</p>
+            <p class="sub" style="margin:8px 0 2px">原典本文</p><pre class="text" style="font-size:14px; white-space:pre-wrap">{{ sm.source_text }}</pre>
+            <p class="sub" style="margin:8px 0 2px">原典を手がかりに読み直した翻刻（画像優先、相違は〔 〕）</p><pre class="text" style="font-size:14px; white-space:pre-wrap">{{ sm.reread }}</pre>
+            <form method="post" action="{{ url_for('source_apply', job_id=job_id) }}" style="margin-top:8px" data-busy="読み直した翻刻を確定し、現代語訳を作り直しています（数十秒）…">
+              <button type="submit">この翻刻を採用して現代語訳を作り直す ▶</button>
+              <span class="sub">　AI の推定です。原典と画像を見比べて納得してから採用してください</span></form>
+          </div>
+          {% else %}<p class="sub" style="margin:6px 0 0">前回の照合: 既知の作品には一致しませんでした{% if sm.reason %}（{{ sm.reason }}）{% endif %}</p>{% endif %}
+        {% endif %}
+      </div>
+      <details class="tab-note" style="margin-top:14px; border-top:1px solid var(--line); padding-top:10px"{% if job.ocr and job.ocr.external %} open{% endif %}>
+        <summary class="sub" style="cursor:pointer"><strong>外部の OCR 結果を貼る</strong>　スマホの「みを」「古文書カメラ」などで読んだテキストを、OCR 結果として登録する{% if job.ocr and job.ocr.external %}（現在: {{ job.ocr.external }} の結果{% if job.ocr.loose_lines %}、行の区切りなし{% endif %}）{% endif %}</summary>
+        <form method="post" action="{{ url_for('set_ocr_text', job_id=job_id) }}" data-busy="登録しています…" style="margin-top:8px">
+          <p class="sub" style="margin:0 0 6px">確定翻刻ではなく「誤りを含む候補」として扱います。登録後に「典拠を照合」や「現代語訳を作成 ▶」（画像で校訂）に進めます。</p>
+          <textarea name="text" rows="4" placeholder="例: かとほをにほてすとにとゆ内かりて…"></textarea>
+          <p style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:6px 0 0">
+            <label class="sub">読んだアプリ <input type="text" name="source" value="みを" style="width:9em"></label>
+            <label class="sub"><input type="checkbox" name="loose" checked> 行の区切りが無い／信頼できない（AI が画像の行に合わせて切る）</label>
+            <button type="submit" class="secondary">OCR 結果として登録</button>
+          </p>
+        </form>
+      </details>
     </div>
 
     {% if a %}

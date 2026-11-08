@@ -300,6 +300,36 @@ def delete_job(job_id):
     return redirect(url_for("jobs"))
 
 
+@app.post("/job/<job_id>/ocrtext")
+def set_ocr_text(job_id):
+    """外部の OCR（みを・古文書カメラなど）の結果を貼り付け、OCR 結果として登録する。
+
+    確定翻刻ではなく「誤りを含む候補」として扱い、AI の校訂と典拠の照合の入力にする。
+    行の区切りが無い（loose_lines）場合は、AI が画像の行に合わせて改行する。
+    """
+    st = store()
+    try:
+        job = st.load(job_id)
+    except KeyError:
+        abort(404)
+    text = (request.form.get("text") or "").replace("\r\n", "\n").strip()
+    if not text:
+        flash("貼り付けるテキストが空です")
+        return redirect(url_for("review", job_id=job_id))
+    ocr = job.get("ocr") or {"text": "", "lines": [], "width": 0, "height": 0, "viz_path": None}
+    if not ocr.get("width"):
+        ocr["width"], ocr["height"] = st.image_size(job_id, job)
+    ocr["text"] = text
+    ocr["external"] = (request.form.get("source") or "外部 OCR").strip()[:40]
+    ocr["loose_lines"] = request.form.get("loose") == "on" or "\n" not in text
+    job["ocr"] = ocr
+    for k in ("annotation", "source_match", "edited_honkoku", "translation_stale", "honkoku_fixed", "from_image"):
+        job.pop(k, None)
+    st.save(job_id, job)
+    flash(f"{ocr['external']} の結果を OCR 結果として登録しました。「典拠を照合」か、右上の「現代語訳を作成 ▶」（画像で校訂）に進んでください")
+    return redirect(url_for("review", job_id=job_id))
+
+
 @app.post("/job/<job_id>/annotate")
 def annotate_job(job_id):
     from kobun.annotate import annotate
@@ -317,7 +347,8 @@ def annotate_job(job_id):
     try:
         ann = annotate(text, img, context=context,
                        glossary=st.glossary() if c["use_glossary"] else None,
-                       prior_pages=st.prior_pages(job) if c["carry_context"] else None)
+                       prior_pages=st.prior_pages(job) if c["carry_context"] else None,
+                       loose_lines=bool((job.get("ocr") or {}).get("loose_lines")) and not from_image)
     except Exception as e:  # noqa: BLE001
         return render_template("error.html", message=f"Claude API 呼び出しに失敗しました: {e}"), 500
     job["edited_honkoku"] = text
@@ -342,6 +373,7 @@ def source_match(job_id):
     except KeyError:
         abort(404)
     honkoku = (job.get("annotation") or {}).get("honkoku") or (job.get("ocr") or {}).get("text", "")
+    loose = not (job.get("annotation") or {}).get("honkoku") and bool((job.get("ocr") or {}).get("loose_lines"))
     if not honkoku.strip():
         flash("先に翻刻（OCR か現代語訳の作成）が必要です")
         return redirect(url_for("review", job_id=job_id))
@@ -352,7 +384,7 @@ def source_match(job_id):
         return redirect(url_for("review", job_id=job_id))
     try:
         m = source_mod.match(honkoku, st.source_image(job_id, job) if c["send_image"] else None, job.get("context", ""),
-                             provider, model, c.get("effort", "high"), key)
+                             provider, model, c.get("effort", "high"), key, loose_lines=loose)
     except Exception as e:  # noqa: BLE001
         return render_template("error.html", message=f"典拠の照合に失敗しました: {e}"), 500
     job["source_match"] = m.to_dict()

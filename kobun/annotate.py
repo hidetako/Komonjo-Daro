@@ -130,7 +130,7 @@ PRIOR_CHARS = 3000   # 前ページの参考として渡す上限（翻刻＋注
 
 
 def build_user_text(ocr_text: str, context: str = "", glossary: list[dict] | None = None,
-                    prior_pages: list[dict] | None = None, fixed: bool = False) -> str:
+                    prior_pages: list[dict] | None = None, fixed: bool = False, loose_lines: bool = False) -> str:
     parts = []
     if context.strip():
         parts.append(f"資料についての補足情報:\n{context.strip()}\n")
@@ -161,6 +161,11 @@ def build_user_text(ocr_text: str, context: str = "", glossary: list[dict] | Non
         parts.append("確定翻刻（利用者が校訂済み。これが正本）:\n" + ocr_text.strip())
         parts.append("\n翻刻は確定しています。honkoku にはこの文字列をそのまま（行構成も含めて 1 字も変えずに）返し、corrections は空にしてください。"
                      "画像は語の解釈や判読の参考にのみ使い、翻刻を直さないでください。現代語訳・注釈・不確実な箇所・要約・推定時代を作成してください。")
+    elif ocr_text.strip() and loose_lines:
+        parts.append("OCR翻刻テキスト（外部のくずし字認識アプリの結果。誤読が多く、改行は無いか信頼できない。文字の順序はおおむね画像の読み順）:\n" + ocr_text.strip())
+        parts.append("\nこのテキストは行の区切りが不明なので、honkoku は画像の行に合わせて改行してください（OCR テキストとの行数の一致は求めません。"
+                     "散らし書きでは画像の 1 行を 1 行とする）。文字は画像で確認できるものだけを採用し、OCR の文字は候補として使う。"
+                     "読めない文字は ■ とし、推測で語句を作らない。有名な和歌・詩文の本文を思い出して書かない。現代語訳と注釈を作成してください。")
     elif ocr_text.strip():
         parts.append("OCR翻刻テキスト（誤認識を含む）:\n" + ocr_text.strip())
         parts.append("\n上記を校訂し、現代語訳と注釈を作成してください。")
@@ -185,7 +190,7 @@ def build_user_content(ocr_text: str, image_path: str | Path | None, context: st
 def annotate(ocr_text: str, image_path: str | Path | None = None, context: str = "", client=None,
              model: str | None = None, effort: str | None = None, api_key: str | None = None,
              provider: str | None = None, glossary: list[dict] | None = None,
-             prior_pages: list[dict] | None = None, fixed: bool = False) -> Annotation:
+             prior_pages: list[dict] | None = None, fixed: bool = False, loose_lines: bool = False) -> Annotation:
     """OCRテキストと画像を LLM に送り、構造化された校訂・現代語訳・注釈を返す。
 
     プロバイダ・モデル・キーは 引数 > 設定ファイル（設定画面） > 環境変数 の順で決まる。
@@ -202,7 +207,7 @@ def annotate(ocr_text: str, image_path: str | Path | None = None, context: str =
             f"{llm.PROVIDERS[provider]['label']} の API キーが設定されていません。画面右上の「設定」から入力してください。"
         )
     image = encode_image(image_path) if image_path else None
-    r = llm.call(provider, model, effort, key, SYSTEM_PROMPT, build_user_text(ocr_text, context, glossary, prior_pages, fixed), image, OUTPUT_SCHEMA, client=client)
+    r = llm.call(provider, model, effort, key, SYSTEM_PROMPT, build_user_text(ocr_text, context, glossary, prior_pages, fixed, loose_lines), image, OUTPUT_SCHEMA, client=client)
     data = llm.parse_json(r.text)
     if fixed:
         # 確定翻刻は AI の返答にかかわらず利用者の文字列を正本にする

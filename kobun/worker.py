@@ -76,7 +76,8 @@ def start_annotate(store: Store, job_ids: list[str], group: str, send_image: boo
                 img = store.source_image(jid, job) if send_image else None
                 ann = annotate(text, img, context=job.get("context", ""),
                                glossary=store.glossary() if use_glossary else None,
-                               prior_pages=store.prior_pages(job) if carry_context else None)
+                               prior_pages=store.prior_pages(job) if carry_context else None,
+                               loose_lines=bool(job["ocr"].get("loose_lines")))
                 job = store.load(jid)
                 job["annotation"] = ann.to_dict()
                 store.save(jid, job)
