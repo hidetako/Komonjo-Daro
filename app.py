@@ -328,7 +328,10 @@ def set_ocr_text(job_id):
     if not ocr.get("width"):
         ocr["width"], ocr["height"] = st.image_size(job_id, job)
     ocr["text"] = text
-    ocr["external"] = (request.form.get("source") or "外部 OCR").strip()[:40]
+    src = (request.form.get("source") or "").strip()
+    if src == "その他":
+        src = (request.form.get("source_other") or "").strip()
+    ocr["external"] = (src or "外部 OCR")[:40]
     ocr["loose_lines"] = request.form.get("loose") == "on" or "\n" not in text
     job["ocr"] = ocr
     for k in ("annotation", "source_match", "edited_honkoku", "translation_stale", "honkoku_fixed", "from_image"):

@@ -83,7 +83,11 @@ def test_external_ocr_text_registers_as_loose_candidate(tmp_path, monkeypatch):
     assert "みを の結果" in body and "かとほをにほてすとにとゆ" in body
     # 改行付きで loose を外せば行構成を保つ
     c.post(f"/job/{jid}/ocrtext", data={"text": "あ\r\nい", "source": "古文書カメラ"})
-    assert st.load(jid)["ocr"]["loose_lines"] is False and st.load(jid)["ocr"]["text"] == "あ\nい"
+    assert st.load(jid)["ocr"]["loose_lines"] is False and st.load(jid)["ocr"]["text"] == "あ\nい" and st.load(jid)["ocr"]["external"] == "古文書カメラ"
+    c.post(f"/job/{jid}/ocrtext", data={"text": "う", "source": "その他", "source_other": "ふみのは"})
+    assert st.load(jid)["ocr"]["external"] == "ふみのは"
+    c.post(f"/job/{jid}/ocrtext", data={"text": "え", "source": "その他"})
+    assert st.load(jid)["ocr"]["external"] == "外部 OCR"
     assert c.post(f"/job/{jid}/ocrtext", data={"text": "  "}).status_code == 302 and st.load(jid)["ocr"]["text"] == "あ\nい"
 
 

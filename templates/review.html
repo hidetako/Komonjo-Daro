@@ -143,7 +143,13 @@
           <p class="sub" style="margin:0 0 6px">確定翻刻ではなく「誤りを含む候補」として扱います。登録後に「典拠を照合」や「現代語訳を作成 ▶」（画像で校訂）に進めます。</p>
           <textarea name="text" rows="4" placeholder="例: かとほをにほてすとにとゆ内かりて…"></textarea>
           <p style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin:6px 0 0">
-            <label class="sub">読んだアプリ <input type="text" name="source" value="みを" style="width:9em"></label>
+            <label class="sub">読んだアプリ
+              <select name="source" id="ext-source">
+                <option value="古文書カメラ"{% if job.ocr and job.ocr.external == '古文書カメラ' %} selected{% endif %}>古文書カメラ（TOPPAN）</option>
+                <option value="みを"{% if job.ocr and job.ocr.external == 'みを' %} selected{% endif %}>みを（CODH）</option>
+                <option value="その他"{% if job.ocr and job.ocr.external and job.ocr.external not in ('古文書カメラ', 'みを') %} selected{% endif %}>その他</option>
+              </select></label>
+            <input type="text" name="source_other" id="ext-source-other" placeholder="アプリ名" style="width:9em; display:none" value="{% if job.ocr and job.ocr.external and job.ocr.external not in ('古文書カメラ', 'みを') %}{{ job.ocr.external }}{% endif %}">
             <label class="sub"><input type="checkbox" name="loose" checked> 行の区切りが無い／信頼できない（AI が画像の行に合わせて切る）</label>
             <button type="submit" class="secondary">OCR 結果として登録</button>
           </p>
@@ -258,6 +264,10 @@
     tabButtons.forEach(x => x.classList.toggle('active', x === b));
     document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.id === 'tab-' + b.dataset.tab));
   }));
+
+  // 外部 OCR のアプリ名: 「その他」で自由入力
+  { const sel = document.getElementById('ext-source'), other = document.getElementById('ext-source-other');
+    if (sel) { const sync = () => { other.style.display = sel.value === 'その他' ? '' : 'none'; }; sel.addEventListener('change', sync); sync(); } }
 
   // 画像拡大（スライダー / Ctrl+ホイール）
   // 左右: 幅いっぱいを100%とする / 上下: ビューアの高さに1ページを収めた状態を100%とする
