@@ -113,3 +113,19 @@ def test_direct_job_records_image_size(tmp_path, monkeypatch):
     jid = r.headers["Location"].rstrip("/").split("/")[-2]
     job = Store(tmp_path / "data").load(jid)
     assert job["from_image"] and (job["ocr"]["width"], job["ocr"]["height"]) == (3000, 800)
+
+
+def test_paste_mode_registers_without_ocr(tmp_path, monkeypatch):
+    monkeypatch.setenv("KOBUN_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("KOBUN_DATA_DIR", str(tmp_path / "data"))
+    import io
+    import app as m
+    c = m.app.test_client()
+    buf = io.BytesIO(); Image.new("RGB", (1200, 400), "white").save(buf, format="JPEG")
+    r = c.post("/ocr", data={"image": (io.BytesIO(buf.getvalue()), "w.jpg"), "title": "p", "mode": "paste"}, content_type="multipart/form-data")
+    assert r.status_code == 302 and r.headers["Location"].rstrip("/").endswith(tuple("0123456789abcdef")) and "/direct" not in r.headers["Location"]
+    jid = r.headers["Location"].rstrip("/").split("/")[-1]
+    job = Store(tmp_path / "data").load(jid)
+    assert job["ocr"]["text"] == "" and (job["ocr"]["width"], job["ocr"]["height"]) == (1200, 400) and not job.get("from_image")
+    body = c.get(f"/job/{jid}").get_data(as_text=True)
+    assert "外部の OCR 結果を貼る" in body and "行を手で切る" in body

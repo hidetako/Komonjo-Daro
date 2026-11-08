@@ -78,7 +78,8 @@ def ocr():
     st = store()
     if tmp.suffix == ".pdf":
         return ocr_pdf(tmp, file.filename, st, c)
-    direct = request.form.get("direct") == "on"
+    mode = request.form.get("mode") or ("direct" if request.form.get("direct") == "on" else "ocr")
+    direct = mode == "direct"
     try:
         job_id = st.create(tmp, file.filename, title=request.form.get("title", ""), context=request.form.get("context", ""))
         if c.get("preprocess", True):
@@ -87,6 +88,13 @@ def ocr():
             except Exception:  # noqa: BLE001
                 pass
         job = st.load(job_id)
+        if mode == "paste":
+            # 登録だけ: OCR も AI も走らせず、外部 OCR の貼り付けや手動の行切りに進む
+            w, h = st.image_size(job_id, job)
+            job["ocr"] = {"text": "", "lines": [], "width": w, "height": h, "viz_path": None}
+            st.save(job_id, job)
+            flash("画像を登録しました。「翻刻」タブ下の「外部の OCR 結果を貼る」か、「行を手で切る」に進んでください")
+            return redirect(url_for("review", job_id=job_id))
         if direct:
             # 書作品・散らし書き: OCR を飛ばして AI に画像から直接翻刻させる
             w, h = st.image_size(job_id, job)

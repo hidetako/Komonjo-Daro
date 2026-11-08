@@ -22,7 +22,10 @@
     <p><input type="text" name="title" id="title" placeholder="タイトル（例: 竹取物語 上 2丁表）未入力ならファイル名"></p>
     <p><input type="text" name="pages" placeholder="PDF のページ範囲（例: 1-5, 8, 12-）空欄なら全ページ。PDF は 1 ページ 1 件として登録し、OCR は順に裏で実行"></p>
     <p><input type="text" name="context" placeholder="補足（資料名・刊年・所蔵など。AI に渡す。任意）"></p>
-    <p><label><input type="checkbox" name="direct" id="direct"> <strong>書作品・散らし書き・写真</strong>　OCR を使わず、AI に画像から直接翻刻させる（版本・整った写本以外はこちらが確実。API キーが必要）</label></p>
+    <p class="sub" style="margin-bottom:4px">読み取り方法</p>
+    <p style="margin-top:0"><label><input type="radio" name="mode" value="ocr" checked> <strong>OCR</strong>　NDL古典籍OCR-Lite で読む（版本・整った写本。ローカル・無料）</label></p>
+    <p style="margin-top:0"><label><input type="radio" name="mode" value="direct"> <strong>AI に画像から直接翻刻</strong>　OCR を使わない（API キーが必要。書作品は読めないことが多い）</label></p>
+    <p style="margin-top:0"><label><input type="radio" name="mode" value="paste"> <strong>登録だけ</strong>　OCR も AI も走らせず、閲覧画面で「外部の OCR 結果を貼る」「行を手で切る」に進む（書作品・散らし書き向け）</label></p>
     <p><button type="submit" id="submit" disabled>OCR を実行</button> <span class="sub">device: {{ device }}</span></p>
   </form>
 </div>
@@ -55,13 +58,11 @@
     empty.style.display = 'none'; prev.style.display = ''; submit.disabled = false;
     const t = document.getElementById('title'); if (!t.value && !f.name.startsWith('clip-')) t.placeholder = f.name.replace(/\.[^.]+$/, '');
   }
-  // 「OCR を使わず」チェックでボタン名と待ち表示を切り替える
-  const direct = document.getElementById('direct'), form = document.getElementById('ocr-form'), busyOcr = form.dataset.busy;
-  function syncDirect(){
-    submit.textContent = direct.checked ? 'AI で直接翻刻する' : 'OCR を実行';
-    form.dataset.busy = direct.checked ? '画像を登録しています。続けて AI の翻刻・現代語訳に進みます…' : busyOcr;
-  }
-  direct.addEventListener('change', syncDirect); syncDirect();
+  // 読み取り方法でボタン名と待ち表示を切り替える
+  const modes = [...document.querySelectorAll('input[name="mode"]')], form = document.getElementById('ocr-form'), busyOcr = form.dataset.busy;
+  const labels = { ocr: ['OCR を実行', busyOcr], direct: ['AI で直接翻刻する', '画像を登録しています。続けて AI の翻刻・現代語訳に進みます…'], paste: ['登録して閲覧画面へ', '画像を登録しています…'] };
+  function syncMode(){ const m = (modes.find(r => r.checked) || modes[0]).value; submit.textContent = labels[m][0]; form.dataset.busy = labels[m][1]; }
+  modes.forEach(r => r.addEventListener('change', syncMode)); syncMode();
   document.getElementById('pick').addEventListener('click', () => file.click());
   file.addEventListener('change', () => setFile(file.files[0]));
   document.getElementById('clear').addEventListener('click', e => { e.preventDefault(); file.value = ''; empty.style.display = ''; prev.style.display = 'none'; submit.disabled = true; });
