@@ -73,7 +73,7 @@ def start_annotate(store: Store, job_ids: list[str], group: str, send_image: boo
                 if "ocr" not in job:
                     raise RuntimeError("OCR 未完了")
                 text = job.get("edited_honkoku") or job["ocr"]["text"]
-                img = store.media_path(jid, "preview.jpg") if send_image else None
+                img = store.source_image(jid, job) if send_image else None
                 ann = annotate(text, img, context=job.get("context", ""),
                                glossary=store.glossary() if use_glossary else None,
                                prior_pages=store.prior_pages(job) if carry_context else None)

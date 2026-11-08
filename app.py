@@ -312,7 +312,7 @@ def annotate_job(job_id):
         return render_template("error.html", message="翻刻テキストが空です（OCR 未完了）。「画像だけで翻刻」を使うこともできます。"), 400
     context = request.form.get("context", job.get("context", ""))
     use_image = request.form.get("use_image") == "on" or from_image
-    img = st.media_path(job_id, "preview.jpg") if use_image else None
+    img = st.source_image(job_id, job) if use_image else None   # 補正画像があればそれを渡す（OCR・行ごと読み・字母・照合と同じ）
     c = cfg()
     try:
         ann = annotate(text, img, context=context,
@@ -433,7 +433,7 @@ def retranslate(job_id):
         abort(400)
     text = job["annotation"]["honkoku"]
     c = cfg()
-    img = st.media_path(job_id, "preview.jpg") if c["send_image"] else None
+    img = st.source_image(job_id, job) if c["send_image"] else None
     try:
         ann = annotate(text, img, context=job.get("context", ""), fixed=True,
                        glossary=st.glossary() if c["use_glossary"] else None,
