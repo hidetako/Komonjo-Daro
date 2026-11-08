@@ -57,9 +57,32 @@ def is_newer(remote: str, local: str = __version__) -> bool:
     return parse_version(remote) > parse_version(local)
 
 
+RETRY_WAITS = (3.0, 8.0)   # GitHub の一時的な 5xx（504 Gateway Time-out など）に備えて 2 回まで再試行
+
+
+def _open(req: urllib.request.Request, timeout: float, waits: tuple = RETRY_WAITS):
+    """urlopen を 5xx・接続エラー・タイムアウトのときだけ再試行する。4xx はそのまま上げる。"""
+    import time
+    import urllib.error
+
+    for i, wait in enumerate((*waits, None)):
+        try:
+            return urllib.request.urlopen(req, timeout=timeout)
+        except urllib.error.HTTPError as e:
+            if e.code < 500 or wait is None:
+                raise
+            log(f"HTTP {e.code} ({req.full_url}) を {wait:.0f} 秒後に再試行 ({i + 1}/{len(waits)})")
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            if wait is None:
+                raise
+            log(f"{e} ({req.full_url}) を {wait:.0f} 秒後に再試行 ({i + 1}/{len(waits)})")
+        time.sleep(wait)
+    raise RuntimeError("unreachable")
+
+
 def fetch_latest(timeout: float = 8.0) -> ReleaseInfo | None:
     req = urllib.request.Request(API_URL, headers={"Accept": "application/vnd.github+json", "User-Agent": "Komonjo-Daro"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    with _open(req, timeout) as r:
         data = json.loads(r.read().decode("utf-8"))
     url = next((a["browser_download_url"] for a in data.get("assets", []) if a.get("name") == ASSET_NAME), "")
     if not url:
@@ -136,7 +159,7 @@ def download_and_install(info: ReleaseInfo, on_progress=None) -> Path:
         raise RuntimeError("自動更新はインストーラー版（Windows）でのみ使えます。開発版は git pull してください。")
     tmp = Path(tempfile.gettempdir()) / f"Komonjo-Daro-Setup-{info.version}.exe"
     req = urllib.request.Request(info.url, headers={"User-Agent": "Komonjo-Daro"})
-    with urllib.request.urlopen(req, timeout=60) as r, open(tmp, "wb") as f:
+    with _open(req, 60) as r, open(tmp, "wb") as f:
         total = int(r.headers.get("Content-Length") or 0)
         done = 0
         if on_progress:

@@ -36,3 +36,49 @@ def test_update_routes(tmp_path, monkeypatch):
     assert c.get("/update/progress").status_code == 200
     r = c.post("/update/apply", follow_redirects=True)
     assert "新しいバージョンはありません" in r.get_data(as_text=True)
+
+
+def test_open_retries_on_5xx_only(monkeypatch):
+    import io
+    import urllib.error
+    import urllib.request
+    from kobun import updater
+
+    monkeypatch.setattr(updater, "RETRY_WAITS", (0.0, 0.0))
+    monkeypatch.setattr("time.sleep", lambda s: None)
+    calls = {"n": 0}
+
+    def flaky(req, timeout=0):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise urllib.error.HTTPError(req.full_url, 504, "Gateway Time-out", {}, io.BytesIO(b""))
+        return io.BytesIO(b"ok")
+
+    monkeypatch.setattr(urllib.request, "urlopen", flaky)
+    req = urllib.request.Request("https://example.org/x")
+    assert updater._open(req, 1).read() == b"ok" and calls["n"] == 3
+
+    # 4xx は再試行しない
+    calls["n"] = 0
+
+    def notfound(req, timeout=0):
+        calls["n"] += 1
+        raise urllib.error.HTTPError(req.full_url, 404, "Not Found", {}, io.BytesIO(b""))
+
+    monkeypatch.setattr(urllib.request, "urlopen", notfound)
+    import pytest
+    with pytest.raises(urllib.error.HTTPError):
+        updater._open(req, 1)
+    assert calls["n"] == 1
+
+    # 5xx が続けば 3 回で諦める
+    calls["n"] = 0
+
+    def always(req, timeout=0):
+        calls["n"] += 1
+        raise urllib.error.HTTPError(req.full_url, 502, "Bad Gateway", {}, io.BytesIO(b""))
+
+    monkeypatch.setattr(urllib.request, "urlopen", always)
+    with pytest.raises(urllib.error.HTTPError):
+        updater._open(req, 1)
+    assert calls["n"] == 3
