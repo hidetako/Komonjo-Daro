@@ -400,10 +400,16 @@ def source_match(job_id):
         flash(f"{llm.PROVIDERS[provider]['label']} の API キーが未設定です（設定から入力）")
         return redirect(url_for("review", job_id=job_id))
     try:
+        context = job.get("context", "")
+        known = st.group_sources(job)
+        if known:
+            # 同じ文書の他ページで典拠が確定していれば、対になる歌・同じ作品の歌を優先して検討させる
+            context = (context + "\n" if context.strip() else "") + "同じ資料の他ページで確定した典拠: " + "、".join(known) + \
+                      "（同じ作品・同じ巻の歌や、対になる贈答歌の可能性を先に検討する）"
         web = None
         if request.form.get("web") == "on":
-            web = source_mod.web_lookup(honkoku, job.get("context", ""), provider, model, c.get("effort", "high"), key, external=external)
-        m = source_mod.match(honkoku, st.source_image(job_id, job) if c["send_image"] else None, job.get("context", ""),
+            web = source_mod.web_lookup(honkoku, context, provider, model, c.get("effort", "high"), key, external=external)
+        m = source_mod.match(honkoku, st.source_image(job_id, job) if c["send_image"] else None, context,
                              provider, model, c.get("effort", "high"), key, loose_lines=loose, external=external, ai_reading=ai_reading,
                              web_notes=web.text if web else "")
         if web:

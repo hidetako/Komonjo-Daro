@@ -216,6 +216,21 @@ class Store:
         pages = [j for j in self.list_group(job["group"]) if j.get("annotation") and j.get("page", 0) < job.get("page", 0)]
         return pages[-limit:]
 
+    def group_sources(self, job: dict) -> list[str]:
+        """同じ文書の他ページで確定・一致した典拠の名前（典拠の照合の手がかりに使う）。"""
+        if not job.get("group"):
+            return []
+        out = []
+        for j in self.list_group(job["group"]):
+            if j.get("id") == job.get("id"):
+                continue
+            sm = j.get("source_match") or {}
+            if sm.get("matched") and sm.get("title"):
+                name = sm["title"] + (f"（{sm['author']}）" if sm.get("author") else "")
+                if name not in out:
+                    out.append(name)
+        return out
+
     def move_to(self, new_dir: str | Path) -> int:
         """保存先を変更し、既存ジョブを移動する。移動した件数を返す。"""
         new_root = Path(new_dir)

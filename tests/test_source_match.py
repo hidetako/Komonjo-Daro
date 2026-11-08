@@ -174,3 +174,21 @@ def test_low_confidence_match_shows_warning(tmp_path, monkeypatch):
     j["source_match"] = {**OUT, "confidence": "high"}; st.save(jid, j)
     body = m.app.test_client().get(f"/job/{jid}").get_data(as_text=True)
     assert "確信度 low:" not in body
+
+
+def test_group_sources_feed_context(tmp_path, monkeypatch):
+    monkeypatch.setenv("KOBUN_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("KOBUN_DATA_DIR", str(tmp_path / "data"))
+    import app as m
+    st = Store(tmp_path / "data")
+    j1 = st.create_from_image(Image.new("RGB", (100, 100), "white"), "p1", "doc", 1, 2, "x.jpg")
+    j2 = st.create_from_image(Image.new("RGB", (100, 100), "white"), "p2", "doc", 2, 2, "y.jpg")
+    a = st.load(j1); a["source_match"] = {**OUT, "title": "源氏物語 紅梅巻 匂宮の返歌", "author": "匂宮"}; st.save(j1, a)
+    b = st.load(j2); b["ocr"] = {"text": "事のにほはするへき", "lines": [], "width": 100, "height": 100, "external": "古文書カメラ", "loose_lines": True}; st.save(j2, b)
+    assert st.group_sources(b) == ["源氏物語 紅梅巻 匂宮の返歌（匂宮）"] and st.group_sources(a) == []
+    c = m.app.test_client()
+    c.post("/settings", data={"api_key": "sk-ant-x", "model": "claude-opus-5-5", "effort": "high", "device": "cpu", "data_dir": str(tmp_path / "data"), "provider": "anthropic", "preprocess": "on"})
+    seen = {}
+    monkeypatch.setattr(m.source_mod, "match", lambda honkoku, img, context, *a, **k: (seen.update({"context": context}), source_match.SourceMatch(**OUT, model="m", tokens=1))[1])
+    c.post(f"/job/{j2}/source")
+    assert "同じ資料の他ページで確定した典拠: 源氏物語 紅梅巻 匂宮の返歌（匂宮）" in seen["context"] and "贈答歌" in seen["context"]
