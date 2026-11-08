@@ -146,14 +146,16 @@ def test_source_route_with_web(tmp_path, monkeypatch):
     c = m.app.test_client()
     c.post("/settings", data={"api_key": "sk-ant-x", "model": "claude-opus-5-5", "effort": "high", "device": "cpu", "data_dir": str(tmp_path / "data"), "provider": "anthropic", "preprocess": "on"})
     seen = {}
-    monkeypatch.setattr(m.source_mod, "web_lookup", lambda *a, **k: llm.LlmResult("候補: 紅梅巻", "m", 3, 4, [{"url": "https://example.org/a", "title": "出典"}]))
+    monkeypatch.setattr(m.source_mod, "web_lookup", lambda *a, **k: llm.LlmResult("候補: 紅梅巻 出典 https://example.org/a", "m", 3, 4,
+                                                                                   [{"url": "https://example.org/a", "title": "出典"}, {"url": "https://example.org/noise", "title": "無関係"}]))
     monkeypatch.setattr(m.source_mod, "match", lambda *a, **k: (seen.update(k), source_match.SourceMatch(**OUT, model="m", tokens=1))[1])
     c.post(f"/job/{jid}/source", data={"web": "on"})
-    assert seen["web_notes"] == "候補: 紅梅巻"
+    assert seen["web_notes"].startswith("候補: 紅梅巻")
     sm = st.load(jid)["source_match"]
-    assert sm["web_notes"] == "候補: 紅梅巻" and sm["web_sources"][0]["url"] == "https://example.org/a" and sm["tokens"] == 8
+    assert sm["web_notes"].startswith("候補: 紅梅巻") and sm["web_sources"][0]["url"] == "https://example.org/a" and sm["tokens"] == 8
     body = c.get(f"/job/{jid}").get_data(as_text=True)
     assert "ウェブ検索の調査メモ" in body and "https://example.org/a" in body
+    assert "メモで引用した出典（1）" in body and "検索で当たった他のページ（1）" in body
     # チェックなしなら検索しない
     seen.clear(); c.post(f"/job/{jid}/source")
     assert seen["web_notes"] == ""

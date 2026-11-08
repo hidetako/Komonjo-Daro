@@ -134,7 +134,14 @@
           {% if sm.web_notes %}
           <details style="margin-top:6px"><summary class="sub" style="cursor:pointer">ウェブ検索の調査メモ{% if sm.web_sources %}（出典 {{ sm.web_sources|length }} 件）{% endif %}</summary>
             <pre class="text" style="font-size:13px; white-space:pre-wrap; margin:4px 0 0">{{ sm.web_notes }}</pre>
-            {% if sm.web_sources %}<ul class="sub" style="margin:4px 0 0; padding-left:18px">{% for src in sm.web_sources %}<li><a href="{{ src.url }}" target="_blank" rel="noopener">{{ src.title or src.url }}</a></li>{% endfor %}</ul>{% endif %}
+            {% if sm.web_sources %}
+              {% set cited = sm.web_sources | selectattr('url', 'in', sm.web_notes) | list %}
+              {% set others = sm.web_sources | rejectattr('url', 'in', sm.web_notes) | list %}
+              {% if cited %}<p class="sub" style="margin:6px 0 2px">メモで引用した出典（{{ cited|length }}）</p>
+              <ul class="sub" style="margin:0; padding-left:18px">{% for src in cited %}<li><a href="{{ src.url }}" target="_blank" rel="noopener">{{ src.title or src.url }}</a></li>{% endfor %}</ul>{% endif %}
+              {% if others %}<details style="margin-top:4px"><summary class="sub" style="cursor:pointer">検索で当たった他のページ（{{ others|length }}）</summary>
+              <ul class="sub" style="margin:4px 0 0; padding-left:18px">{% for src in others %}<li><a href="{{ src.url }}" target="_blank" rel="noopener">{{ src.title or src.url }}</a></li>{% endfor %}</ul></details>{% endif %}
+            {% endif %}
           </details>
           {% endif %}
           {% if sm.candidates %}
