@@ -159,3 +159,18 @@ def test_source_route_with_web(tmp_path, monkeypatch):
     # チェックなしなら検索しない
     seen.clear(); c.post(f"/job/{jid}/source")
     assert seen["web_notes"] == ""
+
+
+def test_low_confidence_match_shows_warning(tmp_path, monkeypatch):
+    monkeypatch.setenv("KOBUN_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("KOBUN_DATA_DIR", str(tmp_path / "data"))
+    import app as m
+    st = Store(tmp_path / "data")
+    jid = st.create_from_image(Image.new("RGB", (100, 100), "white"), "t", "g", 1, 1, "x.jpg")
+    j = st.load(jid); j["ocr"] = {"text": "x", "lines": [], "width": 100, "height": 100}
+    j["source_match"] = {**OUT, "confidence": "low"}; st.save(jid, j)
+    body = m.app.test_client().get(f"/job/{jid}").get_data(as_text=True)
+    assert "確信度 low:" in body and "有名作に寄せた推定" in body
+    j["source_match"] = {**OUT, "confidence": "high"}; st.save(jid, j)
+    body = m.app.test_client().get(f"/job/{jid}").get_data(as_text=True)
+    assert "確信度 low:" not in body

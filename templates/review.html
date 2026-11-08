@@ -126,8 +126,11 @@
             <p class="sub" style="margin:4px 0 0">根拠: {{ sm.reason }}</p>
             <p class="sub" style="margin:8px 0 2px">原典本文</p><pre class="text" style="font-size:14px; white-space:pre-wrap">{{ sm.source_text }}</pre>
             <p class="sub" style="margin:8px 0 2px">原典を手がかりに読み直した翻刻（画像優先、相違は〔 〕）</p><pre class="text" style="font-size:14px; white-space:pre-wrap">{{ sm.reread }}</pre>
+            {% if sm.confidence == 'low' %}
+            <p class="err" style="margin:8px 0 0; padding:6px 10px">確信度 low: 画像の字形で裏付けられた箇所が少なく、有名作に寄せた推定の可能性があります。専用 OCR（古文書カメラ・みを）の結果を貼ってから照合し直すか、原典と画像を一字ずつ見比べて納得できる場合だけ採用してください。</p>
+            {% endif %}
             <form method="post" action="{{ url_for('source_apply', job_id=job_id) }}" style="margin-top:8px" data-busy="読み直した翻刻を確定し、現代語訳を作り直しています（数十秒）…">
-              <button type="submit">この翻刻を採用して現代語訳を作り直す ▶</button>
+              <button type="submit"{% if sm.confidence == 'low' %} class="secondary"{% endif %}>この翻刻を採用して現代語訳を作り直す ▶</button>
               <span class="sub">　AI の推定です。原典と画像を見比べて納得してから採用してください</span></form>
           </div>
           {% else %}<p class="sub" style="margin:6px 0 0">前回の照合: 既知の作品には一致しませんでした{% if sm.reason %}（{{ sm.reason }}）{% endif %}</p>{% endif %}
