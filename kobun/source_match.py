@@ -93,6 +93,9 @@ def web_lookup(honkoku: str, context: str, provider: str, model: str, effort: st
     if context.strip():
         text += f"資料についての補足情報:\n{context.strip()}\n\n"
     text += f"荒い翻刻（出どころ: {origin}）:\n{honkoku.strip()}\n\n句を復元してウェブ検索し、候補を列挙してください。"
+    if external:
+        text += ("\n注意: 書作品の散らし書きでは、断片が 20 字前後でも和歌 1 首（31 音）の一部であることが多い。"
+                 "文末が「べき」「けり」「らむ」でも和歌の結句（〜やあるべき など）であり得るので、地の文と決めつけず和歌としての復元を先に試す。")
     return llm.search_text(provider, model, effort, api_key, WEB_SYSTEM, text, client=client, max_uses=max_uses)
 
 

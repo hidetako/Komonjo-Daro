@@ -124,6 +124,7 @@ def test_web_lookup_uses_search_tool_and_collects_sources():
     assert "web_fetch" in f.calls[0]["system"] and "匂はす宿に" in f.calls[0]["system"]
     assert "output_config" in f.calls[0] and "format" not in f.calls[0]["output_config"]   # 検索段は構造化出力なし
     assert "「古文書カメラ」" in f.calls[0]["messages"][0]["content"][0]["text"] and "調査員" in f.calls[0]["system"]
+    assert "和歌としての復元を先に試す" in f.calls[0]["messages"][0]["content"][0]["text"]
     assert f.calls[1]["messages"][1]["role"] == "assistant"   # pause_turn の続き
     assert "紅梅巻" in r.text and r.sources == [{"url": "https://example.org/a", "title": "紅梅巻の歌"}] and r.input_tokens == 20
 
