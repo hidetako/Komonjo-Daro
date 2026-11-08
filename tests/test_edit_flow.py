@@ -113,3 +113,18 @@ def test_loose_lines_prompt_text():
     source_match.match("かとほ", None, "", "anthropic", "claude-opus-5-5", "high", "k", client=f, loose_lines=True)
     sent = "".join(b["text"] for b in f.calls[0]["messages"][0]["content"] if b["type"] == "text")
     assert "改行は無いか信頼できません" in sent
+
+
+def test_context_can_be_edited_after_registration(tmp_path, monkeypatch):
+    monkeypatch.setenv("KOBUN_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("KOBUN_DATA_DIR", str(tmp_path / "data"))
+    from PIL import Image
+    import app as m
+    from kobun.store import Store
+    c = m.app.test_client()
+    st = Store(tmp_path / "data")
+    jid = st.create_from_image(Image.new("RGB", (100, 100), "white"), "t", "g", 1, 1, "x.jpg")
+    r = c.post(f"/job/{jid}/context", data={"context": "  源氏物語 紅梅巻の贈答歌の一方  "}, follow_redirects=True)
+    assert "補足を保存しました" in r.get_data(as_text=True) and st.load(jid)["context"] == "源氏物語 紅梅巻の贈答歌の一方"
+    assert 'value="源氏物語 紅梅巻の贈答歌の一方"' in c.get(f"/job/{jid}").get_data(as_text=True)
+    assert c.post(f"/job/{jid}/context", data={"context": ""}).status_code == 302 and st.load(jid)["context"] == ""

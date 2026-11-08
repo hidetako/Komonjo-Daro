@@ -29,6 +29,9 @@
       <form method="post" action="{{ url_for('set_title', job_id=job_id) }}" style="display:flex; gap:6px; flex:1; min-width:200px">
         <input type="text" name="title" value="{{ job.title }}" title="タイトル（Enterで保存）" style="font-weight:bold">
       </form>
+      <form method="post" action="{{ url_for('set_context', job_id=job_id) }}" style="display:flex; gap:6px; flex:1; min-width:200px" data-busy="補足を保存しています…">
+        <input type="text" name="context" value="{{ job.context }}" placeholder="補足（資料名・典拠の手がかり・時代など。AI と典拠の照合に渡す。Enterで保存）" title="補足（Enterで保存）。現代語訳・典拠の照合・行ごとの読みに渡されます">
+      </form>
       <label class="sub">拡大 <input type="range" id="zoom" min="50" max="200" value="100" step="10"></label>
       <span class="sub" id="zoom-val">100%</span>
       <a class="sub" href="{{ url_for('media', job_id=job_id, name=job.original) }}" target="_blank">原寸で開く</a>

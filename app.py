@@ -301,6 +301,20 @@ def set_title(job_id):
     return redirect(url_for("review", job_id=job_id))
 
 
+@app.post("/job/<job_id>/context")
+def set_context(job_id):
+    """補足（資料情報）を登録後に編集する。現代語訳・典拠の照合・行ごとの読みの入力になる。"""
+    st = store()
+    try:
+        job = st.load(job_id)
+    except KeyError:
+        abort(404)
+    job["context"] = (request.form.get("context") or "").strip()
+    st.save(job_id, job)
+    flash("補足を保存しました" if job["context"] else "補足を空にしました")
+    return redirect(url_for("review", job_id=job_id))
+
+
 @app.post("/job/<job_id>/delete")
 def delete_job(job_id):
     store().delete(job_id)
