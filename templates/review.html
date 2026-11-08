@@ -116,7 +116,9 @@
       <div id="source" class="tab-note" style="margin-top:14px; border-top:1px solid var(--line); padding-top:10px">
         {% set sm = job.source_match %}
         <div class="toolbar"><span class="sub"><strong>典拠の照合</strong>　既知の和歌・詩文なら原典を手がかりに読み直す（書作品に有効）{% if not a %}。いまは OCR 生テキストを入力にします{% endif %}</span><span style="flex:1"></span>
-          <form method="post" action="{{ url_for('source_match', job_id=job_id) }}" data-busy="典拠を照合しています（数十秒）…"><button type="submit" class="secondary" style="padding:3px 10px; font-size:13px">典拠を照合</button></form></div>
+          <form method="post" action="{{ url_for('source_match', job_id=job_id) }}" data-busy="典拠を照合しています（ウェブ検索を併用すると 1〜2 分）…" style="display:flex; gap:8px; align-items:center">
+            <label class="sub" title="AI の記憶だけで当たらない作品（物語中の歌など）を、ウェブ検索で探してから照合する。検索 1 回あたり約 1.5 円が加算"><input type="checkbox" name="web" checked> ウェブ検索を併用</label>
+            <button type="submit" class="secondary" style="padding:3px 10px; font-size:13px">典拠を照合</button></form></div>
         {% if sm %}
           {% if sm.matched %}
           <div class="card" style="margin:8px 0 0; background:#fbf7ee">
@@ -129,6 +131,12 @@
               <span class="sub">　AI の推定です。原典と画像を見比べて納得してから採用してください</span></form>
           </div>
           {% else %}<p class="sub" style="margin:6px 0 0">前回の照合: 既知の作品には一致しませんでした{% if sm.reason %}（{{ sm.reason }}）{% endif %}</p>{% endif %}
+          {% if sm.web_notes %}
+          <details style="margin-top:6px"><summary class="sub" style="cursor:pointer">ウェブ検索の調査メモ{% if sm.web_sources %}（出典 {{ sm.web_sources|length }} 件）{% endif %}</summary>
+            <pre class="text" style="font-size:13px; white-space:pre-wrap; margin:4px 0 0">{{ sm.web_notes }}</pre>
+            {% if sm.web_sources %}<ul class="sub" style="margin:4px 0 0; padding-left:18px">{% for src in sm.web_sources %}<li><a href="{{ src.url }}" target="_blank" rel="noopener">{{ src.title or src.url }}</a></li>{% endfor %}</ul>{% endif %}
+          </details>
+          {% endif %}
           {% if sm.candidates %}
           <details style="margin-top:6px"><summary class="sub" style="cursor:pointer">検討した候補（{{ sm.candidates|length }}）。合っていそうなものがあれば、その本文を「翻刻を編集」に貼って確定できます</summary>
             <ul class="sub" style="margin:4px 0 0; padding-left:18px">

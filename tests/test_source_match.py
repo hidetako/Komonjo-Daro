@@ -87,3 +87,71 @@ def test_source_routes(tmp_path, monkeypatch):
     j = st.load(jid)
     assert j["annotation"]["honkoku"] == "そでひちて\nむすびし水の" and j["honkoku_fixed"] and not j["translation_stale"]
     assert "典拠: 古今和歌集 巻一（紀貫之）" in j["context"]
+
+
+class FakeSearchAnthropic:
+    """web_search ツール付き呼び出しの偽クライアント: 1 回目は pause_turn、2 回目に本文と検索結果を返す。"""
+    def __init__(self):
+        self.messages = self; self.calls = []
+
+    def stream(self, **kw):
+        self.calls.append(kw)
+        n = len(self.calls)
+        if n == 1:
+            content = [SimpleNamespace(type="text", text="検索中")]
+            stop = "pause_turn"
+        else:
+            content = [SimpleNamespace(type="server_tool_use", name="web_search"),
+                       SimpleNamespace(type="web_search_tool_result", content=[SimpleNamespace(url="https://example.org/a", title="紅梅巻の歌"),
+                                                                                SimpleNamespace(url="https://example.org/a", title="重複")]),
+                       SimpleNamespace(type="text", text="候補: 源氏物語 紅梅巻「花の香を…」 出典 https://example.org/a")]
+            stop = "end_turn"
+
+        class Ctx:
+            def __enter__(s_):
+                return SimpleNamespace(get_final_message=lambda: SimpleNamespace(stop_reason=stop, model="m", content=content,
+                                                                               usage=SimpleNamespace(input_tokens=10, output_tokens=5)))
+            def __exit__(s_, *a):
+                return False
+        return Ctx()
+
+
+def test_web_lookup_uses_search_tool_and_collects_sources():
+    f = FakeSearchAnthropic()
+    r = source_match.web_lookup("てほ遠よほとすやとに", "書作品", "anthropic", "m", "high", "k", client=f, external="古文書カメラ")
+    assert len(f.calls) == 2 and f.calls[0]["tools"][0]["name"] == "web_search" and f.calls[0]["tools"][0]["max_uses"] == 5
+    assert "output_config" in f.calls[0] and "format" not in f.calls[0]["output_config"]   # 検索段は構造化出力なし
+    assert "「古文書カメラ」" in f.calls[0]["messages"][0]["content"][0]["text"] and "調査員" in f.calls[0]["system"]
+    assert f.calls[1]["messages"][1]["role"] == "assistant"   # pause_turn の続き
+    assert "紅梅巻" in r.text and r.sources == [{"url": "https://example.org/a", "title": "紅梅巻の歌"}] and r.input_tokens == 20
+
+
+def test_match_includes_web_notes():
+    f = Fake(OUT)
+    source_match.match("かとほ", None, "", "anthropic", "m", "high", "k", client=f, web_notes="候補: 紅梅巻")
+    sent = f.calls[0]["messages"][0]["content"][0]["text"]
+    assert "ウェブ検索による候補調査の結果" in sent and "候補: 紅梅巻" in sent
+
+
+def test_source_route_with_web(tmp_path, monkeypatch):
+    monkeypatch.setenv("KOBUN_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.setenv("KOBUN_DATA_DIR", str(tmp_path / "data"))
+    import app as m
+    from kobun import llm
+    st = Store(tmp_path / "data")
+    jid = st.create_from_image(Image.new("RGB", (100, 100), "white"), "t", "g", 1, 1, "x.jpg")
+    j = st.load(jid); j["ocr"] = {"text": "てほ遠よほとす", "lines": [], "width": 100, "height": 100, "external": "古文書カメラ", "loose_lines": True}; st.save(jid, j)
+    c = m.app.test_client()
+    c.post("/settings", data={"api_key": "sk-ant-x", "model": "claude-opus-5-5", "effort": "high", "device": "cpu", "data_dir": str(tmp_path / "data"), "provider": "anthropic", "preprocess": "on"})
+    seen = {}
+    monkeypatch.setattr(m.source_mod, "web_lookup", lambda *a, **k: llm.LlmResult("候補: 紅梅巻", "m", 3, 4, [{"url": "https://example.org/a", "title": "出典"}]))
+    monkeypatch.setattr(m.source_mod, "match", lambda *a, **k: (seen.update(k), source_match.SourceMatch(**OUT, model="m", tokens=1))[1])
+    c.post(f"/job/{jid}/source", data={"web": "on"})
+    assert seen["web_notes"] == "候補: 紅梅巻"
+    sm = st.load(jid)["source_match"]
+    assert sm["web_notes"] == "候補: 紅梅巻" and sm["web_sources"][0]["url"] == "https://example.org/a" and sm["tokens"] == 8
+    body = c.get(f"/job/{jid}").get_data(as_text=True)
+    assert "ウェブ検索の調査メモ" in body and "https://example.org/a" in body
+    # チェックなしなら検索しない
+    seen.clear(); c.post(f"/job/{jid}/source")
+    assert seen["web_notes"] == ""

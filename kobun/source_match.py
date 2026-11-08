@@ -71,6 +71,27 @@ SCHEMA = {
 }
 
 
+WEB_SYSTEM = """あなたは日本古典文学の調査員です。出力は日本語。
+誤読を含む荒い翻刻（くずし字 OCR の結果）と資料情報から、和歌の句や定型句になりそうな語を復元し、
+ウェブ検索でその語句を含む作品（和歌・連歌・俳諧・漢詩・物語中の歌・仏典など）を探してください。
+- 検索語は、復元した句（例: 「にほはす宿に」「人のとがめむ」）を鍵括弧付きで組み合わせる。
+- 見つかった候補ごとに: 作品名（歌集名・巻・番号、物語なら巻名と詠者）、作者、原典本文（定本の表記）、出典 URL、
+  断片との合い具合を 1 行ずつ。最大 5 件。確信が無い候補も「確信度: 低」と付けて挙げてよい。
+- 断片が検索結果と一致しないのに有名作を挙げてはいけない。見つからなければ「該当なし」と書き、試した検索語を列挙する。
+"""
+
+
+def web_lookup(honkoku: str, context: str, provider: str, model: str, effort: str, api_key: str,
+               client=None, external: str = "", max_uses: int = 5) -> llm.LlmResult:
+    """ウェブ検索で典拠の候補を探す（自由文）。結果は match() に web_notes として渡す。"""
+    origin = f"専用のくずし字 OCR アプリ「{external}」の結果（文字の並びは画像の読み順。誤読が多い）" if external else "AI の読み（誤読と創作を含む）"
+    text = ""
+    if context.strip():
+        text += f"資料についての補足情報:\n{context.strip()}\n\n"
+    text += f"荒い翻刻（出どころ: {origin}）:\n{honkoku.strip()}\n\n句を復元してウェブ検索し、候補を列挙してください。"
+    return llm.search_text(provider, model, effort, api_key, WEB_SYSTEM, text, client=client, max_uses=max_uses)
+
+
 @dataclass
 class SourceMatch:
     matched: bool
@@ -81,6 +102,8 @@ class SourceMatch:
     reason: str
     reread: str
     candidates: list = field(default_factory=list)
+    web_notes: str = ""
+    web_sources: list = field(default_factory=list)
     model: str = ""
     tokens: int = 0
 
@@ -89,7 +112,8 @@ class SourceMatch:
 
 
 def match(honkoku: str, image_path: str | Path | None, context: str, provider: str, model: str, effort: str,
-          api_key: str, client=None, loose_lines: bool = False, external: str = "", ai_reading: str = "") -> SourceMatch:
+          api_key: str, client=None, loose_lines: bool = False, external: str = "", ai_reading: str = "",
+          web_notes: str = "") -> SourceMatch:
     """external は荒い翻刻の出どころ（「みを」「古文書カメラ」など専用 OCR の名前）。空なら AI の読みとして扱う。
     ai_reading は、外部 OCR とは別に AI が校訂した翻刻があるときの参考テキスト（暗唱の可能性があるので根拠にはしない）。"""
     parts: list[tuple] = []
@@ -107,6 +131,9 @@ def match(honkoku: str, image_path: str | Path | None, context: str, provider: s
     if ai_reading.strip():
         text += ("\n\n参考: AI が画像から校訂した翻刻（読めない箇所を有名作で埋めている可能性があるため、一致の根拠にはしない。行構成の参考にはしてよい）:\n"
                  + ai_reading.strip())
+    if web_notes.strip():
+        text += ("\n\nウェブ検索による候補調査の結果（出典 URL 付き。候補の本文はここから引用してよい。断片・画像との照合は改めて行うこと）:\n"
+                 + web_notes.strip())
     parts.append(("text", text))
     r = llm.call_parts(provider, model, effort, api_key, SYSTEM, parts, SCHEMA, client=client)
     data = json.loads(r.text)

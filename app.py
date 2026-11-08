@@ -400,8 +400,14 @@ def source_match(job_id):
         flash(f"{llm.PROVIDERS[provider]['label']} の API キーが未設定です（設定から入力）")
         return redirect(url_for("review", job_id=job_id))
     try:
+        web = None
+        if request.form.get("web") == "on":
+            web = source_mod.web_lookup(honkoku, job.get("context", ""), provider, model, c.get("effort", "high"), key, external=external)
         m = source_mod.match(honkoku, st.source_image(job_id, job) if c["send_image"] else None, job.get("context", ""),
-                             provider, model, c.get("effort", "high"), key, loose_lines=loose, external=external, ai_reading=ai_reading)
+                             provider, model, c.get("effort", "high"), key, loose_lines=loose, external=external, ai_reading=ai_reading,
+                             web_notes=web.text if web else "")
+        if web:
+            m.web_notes, m.web_sources, m.tokens = web.text, web.sources, m.tokens + web.input_tokens + web.output_tokens
     except Exception as e:  # noqa: BLE001
         return render_template("error.html", message=f"典拠の照合に失敗しました: {e}"), 500
     job["source_match"] = m.to_dict()

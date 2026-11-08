@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 PROVIDERS = {
     "anthropic": {"label": "Anthropic（Claude）", "key_prefix": "sk-ant-", "console": "https://console.anthropic.com/settings/keys"},
@@ -43,6 +43,7 @@ class LlmResult:
     model: str
     input_tokens: int
     output_tokens: int
+    sources: list = field(default_factory=list)   # ウェブ検索を使った場合の出典 [{"url","title"}]
 
 
 # ---------- 共通 ----------
@@ -174,6 +175,74 @@ def _call_openai(model, effort, api_key, system, parts, schema, client=None) -> 
         raise RuntimeError("モデルから本文が返りませんでした（拒否または空応答）。")
     usage = getattr(r, "usage", None)
     return LlmResult(out, getattr(r, "model", model), getattr(usage, "input_tokens", 0) or 0, getattr(usage, "output_tokens", 0) or 0)
+
+
+def search_text(provider: str, model: str, effort: str, api_key: str, system: str, text: str,
+                client=None, max_uses: int = 5) -> LlmResult:
+    """ウェブ検索ツール付きの自由文呼び出し（構造化出力なし）。候補の調査など、検索結果を文章で返させる用途。
+
+    Anthropic は web_search ツール、OpenAI は Responses API の web_search ツール。検索は 1 回あたり課金される。
+    """
+    if provider == "anthropic":
+        return _search_anthropic(model, effort, api_key, system, text, client, max_uses)
+    if provider == "openai":
+        return _search_openai(model, effort, api_key, system, text, client)
+    raise ValueError(f"未対応のプロバイダ: {provider}")
+
+
+def _search_anthropic(model, effort, api_key, system, text, client=None, max_uses=5) -> LlmResult:
+    import anthropic
+
+    client = client or (anthropic.Anthropic(api_key=api_key) if api_key else anthropic.Anthropic())
+    messages = [{"role": "user", "content": [{"type": "text", "text": text}]}]
+    tools = [{"type": "web_search_20250305", "name": "web_search", "max_uses": max_uses}]
+    tin = tout = 0
+    for _ in range(4):   # pause_turn で中断されたら、応答をそのまま返して続きを頼む
+        with client.messages.stream(model=model, max_tokens=16000, system=system, messages=messages, tools=tools,
+                                    output_config={"effort": effort}) as stream:
+            r = stream.get_final_message()
+        tin += r.usage.input_tokens
+        tout += r.usage.output_tokens
+        if r.stop_reason == "refusal":
+            d = getattr(r, "stop_details", None)
+            raise RuntimeError(f"モデルが応答を拒否しました: {getattr(d, 'explanation', '')}")
+        if r.stop_reason == "pause_turn":
+            messages.append({"role": "assistant", "content": r.content})
+            continue
+        break
+    texts, sources, seen = [], [], set()
+    for b in r.content:
+        if b.type == "text":
+            texts.append(b.text)
+        elif b.type == "web_search_tool_result" and isinstance(b.content, list):
+            for res in b.content:
+                url = getattr(res, "url", "")
+                if url and url not in seen:
+                    seen.add(url)
+                    sources.append({"url": url, "title": getattr(res, "title", "") or ""})
+    return LlmResult("".join(texts).strip(), r.model, tin, tout, sources)
+
+
+def _search_openai(model, effort, api_key, system, text, client=None) -> LlmResult:
+    import openai
+
+    client = client or openai.OpenAI(api_key=api_key)
+    kwargs = dict(model=model, instructions=system, input=[{"role": "user", "content": [{"type": "input_text", "text": text}]}],
+                  tools=[{"type": "web_search"}], max_output_tokens=16000)
+    if openai_supports_reasoning(model):
+        kwargs["reasoning"] = {"effort": openai_effort(effort, model)}
+    r = client.responses.create(**kwargs)
+    sources, seen = [], set()
+    for item in getattr(r, "output", None) or []:
+        for c in getattr(item, "content", None) or []:
+            for a in getattr(c, "annotations", None) or []:
+                url = getattr(a, "url", "")
+                if getattr(a, "type", "") == "url_citation" and url and url not in seen:
+                    seen.add(url)
+                    sources.append({"url": url, "title": getattr(a, "title", "") or ""})
+    usage = getattr(r, "usage", None)
+    return LlmResult((r.output_text or "").strip(), getattr(r, "model", model), getattr(usage, "input_tokens", 0) or 0,
+                     getattr(usage, "output_tokens", 0) or 0, sources)
 
 
 def parse_json(text: str) -> dict:
