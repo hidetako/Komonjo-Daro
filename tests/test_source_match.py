@@ -119,7 +119,9 @@ class FakeSearchAnthropic:
 def test_web_lookup_uses_search_tool_and_collects_sources():
     f = FakeSearchAnthropic()
     r = source_match.web_lookup("てほ遠よほとすやとに", "書作品", "anthropic", "m", "high", "k", client=f, external="古文書カメラ")
-    assert len(f.calls) == 2 and f.calls[0]["tools"][0]["name"] == "web_search" and f.calls[0]["tools"][0]["max_uses"] == 5
+    assert len(f.calls) == 2 and f.calls[0]["tools"][0]["name"] == "web_search" and f.calls[0]["tools"][0]["max_uses"] == 8
+    assert f.calls[0]["tools"][1]["name"] == "web_fetch" and f.calls[0]["tools"][1]["type"].startswith("web_fetch_")
+    assert "web_fetch" in f.calls[0]["system"] and "匂はす宿に" in f.calls[0]["system"]
     assert "output_config" in f.calls[0] and "format" not in f.calls[0]["output_config"]   # 検索段は構造化出力なし
     assert "「古文書カメラ」" in f.calls[0]["messages"][0]["content"][0]["text"] and "調査員" in f.calls[0]["system"]
     assert f.calls[1]["messages"][1]["role"] == "assistant"   # pause_turn の続き

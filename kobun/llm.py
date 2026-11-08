@@ -178,10 +178,11 @@ def _call_openai(model, effort, api_key, system, parts, schema, client=None) -> 
 
 
 def search_text(provider: str, model: str, effort: str, api_key: str, system: str, text: str,
-                client=None, max_uses: int = 5) -> LlmResult:
+                client=None, max_uses: int = 8) -> LlmResult:
     """ウェブ検索ツール付きの自由文呼び出し（構造化出力なし）。候補の調査など、検索結果を文章で返させる用途。
 
-    Anthropic は web_search ツール、OpenAI は Responses API の web_search ツール。検索は 1 回あたり課金される。
+    Anthropic は web_search と web_fetch（検索で見つけたページの全文を読む）、OpenAI は Responses API の
+    web_search（search_context_size=high）。検索は 1 回あたり課金される。
     """
     if provider == "anthropic":
         return _search_anthropic(model, effort, api_key, system, text, client, max_uses)
@@ -190,12 +191,13 @@ def search_text(provider: str, model: str, effort: str, api_key: str, system: st
     raise ValueError(f"未対応のプロバイダ: {provider}")
 
 
-def _search_anthropic(model, effort, api_key, system, text, client=None, max_uses=5) -> LlmResult:
+def _search_anthropic(model, effort, api_key, system, text, client=None, max_uses=8) -> LlmResult:
     import anthropic
 
     client = client or (anthropic.Anthropic(api_key=api_key) if api_key else anthropic.Anthropic())
     messages = [{"role": "user", "content": [{"type": "text", "text": text}]}]
-    tools = [{"type": "web_search_20250305", "name": "web_search", "max_uses": max_uses}]
+    tools = [{"type": "web_search_20250305", "name": "web_search", "max_uses": max_uses},
+             {"type": "web_fetch_20250910", "name": "web_fetch", "max_uses": 4, "max_content_tokens": 60000}]
     tin = tout = 0
     for _ in range(4):   # pause_turn で中断されたら、応答をそのまま返して続きを頼む
         with client.messages.stream(model=model, max_tokens=16000, system=system, messages=messages, tools=tools,
@@ -228,7 +230,7 @@ def _search_openai(model, effort, api_key, system, text, client=None) -> LlmResu
 
     client = client or openai.OpenAI(api_key=api_key)
     kwargs = dict(model=model, instructions=system, input=[{"role": "user", "content": [{"type": "input_text", "text": text}]}],
-                  tools=[{"type": "web_search"}], max_output_tokens=16000)
+                  tools=[{"type": "web_search", "search_context_size": "high"}], max_output_tokens=16000)
     if openai_supports_reasoning(model):
         kwargs["reasoning"] = {"effort": openai_effort(effort, model)}
     r = client.responses.create(**kwargs)
