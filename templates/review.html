@@ -29,14 +29,15 @@
       <form method="post" action="{{ url_for('set_title', job_id=job_id) }}" style="display:flex; gap:6px; flex:1; min-width:200px">
         <input type="text" name="title" value="{{ job.title }}" title="タイトル（Enterで保存）" style="font-weight:bold">
       </form>
-      <form method="post" action="{{ url_for('set_context', job_id=job_id) }}" style="display:flex; gap:6px; flex:1; min-width:200px" data-busy="補足を保存しています…">
-        <input type="text" name="context" value="{{ job.context }}" placeholder="補足（資料名・典拠の手がかり・時代など。AI と典拠の照合に渡す。Enterで保存）" title="補足（Enterで保存）。現代語訳・典拠の照合・行ごとの読みに渡されます">
-      </form>
       <label class="sub">拡大 <input type="range" id="zoom" min="50" max="200" value="100" step="10"></label>
       <span class="sub" id="zoom-val">100%</span>
       <a class="sub" href="{{ url_for('media', job_id=job_id, name=job.original) }}" target="_blank">原寸で開く</a>
       {% if job.enhanced %}<button type="button" class="secondary" id="img-toggle" style="padding:3px 8px; font-size:12px" title="OCR と AI に渡している補正画像（影・傾き・薄さを補正）を表示">補正画像</button>{% endif %}
     </div>
+    <form method="post" action="{{ url_for('set_context', job_id=job_id) }}" style="display:flex; gap:6px; margin:6px 0 0" data-busy="補足を保存しています…">
+      <span class="sub" style="white-space:nowrap; align-self:center">補足</span>
+      <input type="text" name="context" value="{{ job.context }}" style="flex:1" placeholder="資料名・典拠の手がかり・時代など。現代語訳・典拠の照合・行ごとの読みに渡す（Enter で保存）" title="Enter で保存">
+    </form>
     <div class="viewer" id="viewer">
       <div id="stage" style="position:relative; display:inline-block">
         <img id="page" src="{{ url_for('media', job_id=job_id, name='preview.jpg') }}" alt="資料画像">
