@@ -19,7 +19,9 @@ SYSTEM = """あなたは日本古典文学・漢詩文に通じた翻刻の専�
 
 0. まず、荒い翻刻の断片と画像から思い当たる作品の候補を最大 5 つ挙げてください（candidates）。それぞれ原典本文と、
    断片・画像とどの程度合うか（fit）を短く書く。候補を挙げるときは、断片が「同じ作品の同じ順序」で現れるかを重視する。
-   1 つも思い当たらなければ candidates は空でよい。
+   手順: 誤読を含む仮名列から、和歌の句（5 音・7 音）や定型句になりそうな語（例: 「にほはす」「やどに」「人のとがめむ」）を
+   復元し、復元した語の組み合わせで知っている作品を検索する。画像の自己読みと断片が食い違う場合、専用 OCR の断片を
+   先に信じて候補を出し、そのあと画像で検証する。1 つも思い当たらなければ candidates は空でよい。
 1. 候補を画像の各行と照合し、この文章が既知の作品（和歌・連歌・俳諧・漢詩・物語・仏典・書簡の定型句など）に当たるかを判定してください。
    - 一致すると考える場合: 出典（歌集名・巻・番号、作者、作品名）と、その原典本文を示してください。
      原典本文は定本の表記（歴史的仮名遣い、漢字仮名交じり）で。確信度 high / medium / low と根拠（どの語句が一致したか）。
@@ -87,8 +89,9 @@ class SourceMatch:
 
 
 def match(honkoku: str, image_path: str | Path | None, context: str, provider: str, model: str, effort: str,
-          api_key: str, client=None, loose_lines: bool = False, external: str = "") -> SourceMatch:
-    """external は荒い翻刻の出どころ（「みを」「古文書カメラ」など専用 OCR の名前）。空なら AI の読みとして扱う。"""
+          api_key: str, client=None, loose_lines: bool = False, external: str = "", ai_reading: str = "") -> SourceMatch:
+    """external は荒い翻刻の出どころ（「みを」「古文書カメラ」など専用 OCR の名前）。空なら AI の読みとして扱う。
+    ai_reading は、外部 OCR とは別に AI が校訂した翻刻があるときの参考テキスト（暗唱の可能性があるので根拠にはしない）。"""
     parts: list[tuple] = []
     if image_path:
         parts.append(("image", encode_image(image_path)))
@@ -101,6 +104,9 @@ def match(honkoku: str, image_path: str | Path | None, context: str, provider: s
     if loose_lines:
         text += ("\n注意: この翻刻は外部のくずし字認識アプリの結果で、改行は無いか信頼できません。文字の順序はおおむね画像の読み順です。"
                  "reread は与えられた行構成に合わせず、画像の行に合わせて改行してください。")
+    if ai_reading.strip():
+        text += ("\n\n参考: AI が画像から校訂した翻刻（読めない箇所を有名作で埋めている可能性があるため、一致の根拠にはしない。行構成の参考にはしてよい）:\n"
+                 + ai_reading.strip())
     parts.append(("text", text))
     r = llm.call_parts(provider, model, effort, api_key, SYSTEM, parts, SCHEMA, client=client)
     data = json.loads(r.text)
