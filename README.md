@@ -33,6 +33,7 @@ Komonjo-Daro/
 
 1. [Releases](https://github.com/hidetako/Komonjo-Daro/releases/latest) から `Komonjo-Daro-Setup.exe` をダウンロードして実行（管理者権限不要）。
    HP に貼る固定リンク: `https://github.com/hidetako/Komonjo-Daro/releases/latest/download/Komonjo-Daro-Setup.exe`
+   ARM64 Windows（Snapdragon X など）向けネイティブ版: `https://github.com/hidetako/Komonjo-Daro/releases/latest/download/Komonjo-Daro-Setup-arm64.exe`（x64 版もエミュレーションで動作。アプリ内の更新は自動で自分の版を選ぶ）
 2. 起動すると Edge/Chrome のアプリウィンドウが開く。タスクトレイのアイコンから「開く」「終了」。
 3. 右上「設定」で使う AI（Anthropic / OpenAI）を選び、API キーを入力（「キーを確認」で有効性チェック、「一覧を取得」で各社の現行モデルから選択）。保存フォルダもここで変更できる。
 4. 新しいバージョンが出ると起動時に通知。「今すぐ更新」でダウンロードとサイレントインストールが走り、自動で再起動する。

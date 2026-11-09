@@ -20,7 +20,23 @@ from pathlib import Path
 from . import GITHUB_REPO, __version__
 from .config import IS_FROZEN
 
-ASSET_NAME = "Komonjo-Daro-Setup.exe"
+ASSET_NAME = "Komonjo-Daro-Setup.exe"            # x64 版（ARM64 Windows でもエミュレーションで動く）
+ASSET_NAME_ARM64 = "Komonjo-Daro-Setup-arm64.exe"  # ネイティブ ARM64 版（Snapdragon X など）
+
+
+def windows_arm64() -> bool:
+    """ARM64 Windows 上か。x64 版をエミュレーションで実行中でも True（PROCESSOR_ARCHITEW6432 で判定）。"""
+    if sys.platform != "win32":
+        return False
+    import platform
+
+    arch = (os.environ.get("PROCESSOR_ARCHITEW6432") or os.environ.get("PROCESSOR_ARCHITECTURE") or platform.machine() or "").upper()
+    return arch == "ARM64"
+
+
+def asset_names() -> list[str]:
+    """このマシン向けのインストーラー名を優先順に返す。ARM64 ならネイティブ版、無ければ x64 版。"""
+    return [ASSET_NAME_ARM64, ASSET_NAME] if windows_arm64() else [ASSET_NAME]
 
 
 def log_dir() -> Path:
@@ -86,7 +102,8 @@ def fetch_latest(timeout: float = 8.0) -> ReleaseInfo | None:
     req = urllib.request.Request(API_URL, headers={"Accept": "application/vnd.github+json", "User-Agent": "Komonjo-Daro"})
     with _open(req, timeout) as r:
         data = json.loads(r.read().decode("utf-8"))
-    asset = next((a for a in data.get("assets", []) if a.get("name") == ASSET_NAME), None)
+    by_name = {a.get("name"): a for a in data.get("assets", [])}
+    asset = next((by_name[n] for n in asset_names() if n in by_name), None)
     if not asset or not asset.get("browser_download_url"):
         return None
     return ReleaseInfo(version=data.get("tag_name", "").lstrip("v"), url=asset["browser_download_url"],

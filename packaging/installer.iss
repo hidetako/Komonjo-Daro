@@ -2,6 +2,9 @@
 #ifndef AppVersion
   #define AppVersion "0.0.0"
 #endif
+#ifndef Arch
+  #define Arch "x64"
+#endif
 #define AppName "Komonjo-Daro"
 #define AppExe "Komonjo-Daro.exe"
 #define AppPublisher "hidetako"
@@ -22,13 +25,24 @@ DefaultDirName={autopf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 OutputDir=..\dist\installer
+#if Arch == "arm64"
+OutputBaseFilename=Komonjo-Daro-Setup-arm64
+#else
 OutputBaseFilename=Komonjo-Daro-Setup
+#endif
 SetupIconFile=icon.ico
 UninstallDisplayIcon={app}\{#AppExe}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
+#if Arch == "arm64"
+; ネイティブ ARM64 版: ARM64 Windows にのみインストール可
+ArchitecturesAllowed=arm64
+ArchitecturesInstallIn64BitMode=arm64
+#else
+; x64 版: x64 と、エミュレーションで x64 を実行できる ARM64 Windows にインストール可
 ArchitecturesInstallIn64BitMode=x64compatible
+#endif
 ; 既存バージョンの上書きインストールを許可
 UsePreviousAppDir=yes
 CloseApplications=force

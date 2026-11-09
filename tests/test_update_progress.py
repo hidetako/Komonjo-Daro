@@ -121,3 +121,35 @@ def test_fetch_latest_keeps_api_url(monkeypatch):
     monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=0: io.BytesIO(json.dumps(data).encode()))
     info = updater.fetch_latest()
     assert info.version == "9.9.9" and info.url == "https://github.com/d" and info.api_url == "https://api.github.com/a"
+
+
+def test_asset_selection_by_architecture(monkeypatch):
+    import io, json
+    import urllib.request
+    from kobun import updater
+
+    data = {"tag_name": "v9.9.9", "body": "n", "html_url": "p", "assets": [
+        {"name": "Komonjo-Daro-Setup.exe", "browser_download_url": "https://github.com/x64", "url": "https://api.github.com/x64"},
+        {"name": "Komonjo-Daro-Setup-arm64.exe", "browser_download_url": "https://github.com/arm64", "url": "https://api.github.com/arm64"}]}
+    monkeypatch.setattr(urllib.request, "urlopen", lambda req, timeout=0: io.BytesIO(json.dumps(data).encode()))
+    monkeypatch.setattr(updater, "windows_arm64", lambda: False)
+    assert updater.fetch_latest().url == "https://github.com/x64"
+    monkeypatch.setattr(updater, "windows_arm64", lambda: True)
+    assert updater.fetch_latest().url == "https://github.com/arm64"
+    # 古いリリースに ARM64 版が無ければ x64 版に落ちる
+    data["assets"].pop()
+    assert updater.fetch_latest().url == "https://github.com/x64"
+
+
+def test_windows_arm64_detection(monkeypatch):
+    from kobun import updater
+    monkeypatch.setattr(updater.sys, "platform", "win32")
+    monkeypatch.setenv("PROCESSOR_ARCHITEW6432", "ARM64")      # x64 版をエミュレーションで実行中
+    monkeypatch.setenv("PROCESSOR_ARCHITECTURE", "AMD64")
+    assert updater.windows_arm64() is True
+    monkeypatch.delenv("PROCESSOR_ARCHITEW6432")
+    assert updater.windows_arm64() is False
+    monkeypatch.setenv("PROCESSOR_ARCHITECTURE", "ARM64")       # ネイティブ ARM64 プロセス
+    assert updater.windows_arm64() is True
+    monkeypatch.setattr(updater.sys, "platform", "linux")
+    assert updater.windows_arm64() is False
